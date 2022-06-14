@@ -1,3 +1,5 @@
+*.wif
+/cookie.txt
 /rawtx.hex
 
 .env.*
