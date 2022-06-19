@@ -396,8 +396,8 @@ async function signup(args, state) {
   console.info("Requesting account...");
   await CrowdNode.signup(state.privKey, state.hotwallet);
   state.signup = "✅";
-  console.info(`    ${signup} SignUpForApi`);
-  console.info(`    ${accept} AcceptTerms`);
+  console.info(`    ${state.signup} SignUpForApi`);
+  console.info(`    ${state.accept} AcceptTerms`);
   process.exit(0);
   return;
 }
