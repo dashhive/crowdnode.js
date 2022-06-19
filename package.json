@@ -1,6 +1,6 @@
 {
   "name": "crowdnode",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Manage your stake in Đash with the CrowdNode Blockchain API",
   "main": "./lib/crowdnode.js",
   "bin": {
@@ -14,7 +14,13 @@
     "type": "git",
     "url": "git+https://github.com/dashhive/crowdnode.js.git"
   },
-  "keywords": ["Dash", "CrowdNode", "Blockchain", "Stake", "Staking"],
+  "keywords": [
+    "Dash",
+    "CrowdNode",
+    "Blockchain",
+    "Stake",
+    "Staking"
+  ],
   "author": "AJ ONeal <aj@therootcompany.com> (https://therootcompany.com)",
   "license": "SEE LICENSE IN LICENSE",
   "bugs": {
