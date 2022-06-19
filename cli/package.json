@@ -1,6 +1,6 @@
 {
   "name": "crowdnode-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Manage your stake in Đash with the CrowdNode Blockchain API",
   "main": "./bin/crowdnode.js",
   "bin": {
