@@ -129,12 +129,22 @@ async function main() {
     return;
   }
 
+  let insightBaseUrl =
+    process.env.INSIGHT_BASE_URL || "https://insight.dash.org";
+  let insightApi = Insight.create({ baseUrl: insightBaseUrl });
+  let dashApi = Dash.create({ insightApi: insightApi });
+
+  process.stdout.write("Checking CrowdNode API... ");
+  await CrowdNode.init({
+    baseUrl: "https://app.crowdnode.io",
+    insightBaseUrl,
+    insightApi: insightApi,
+  });
+  console.info(`hotwallet is ${CrowdNode.main.hotwallet}`);
+
   let rpc = "";
   if ("http" === subcommand) {
     rpc = args.shift();
-  }
-
-  if ("http" === subcommand) {
     let keyfile = args.shift();
     let pub = await wifFileToAddr(keyfile);
 
@@ -174,11 +184,6 @@ async function main() {
     process.exit(1);
   }
 
-  let insightBaseUrl =
-    process.env.INSIGHT_BASE_URL || "https://insight.dash.org";
-  let insightApi = Insight.create({ baseUrl: insightBaseUrl });
-  let dashApi = Dash.create({ insightApi: insightApi });
-
   let pk = new Dashcore.PrivateKey(privKey);
   let pub = pk.toPublicKey().toAddress().toString();
 
@@ -206,7 +211,7 @@ async function main() {
     balanceInfo: balanceInfo,
     dashApi: dashApi,
     forceConfirm: forceConfirm,
-    hotwallet: "",
+    hotwallet: CrowdNode.main.hotwallet,
     insightBaseUrl: insightBaseUrl,
     insightApi: insightApi,
     noReserve: noReserve,
@@ -235,15 +240,6 @@ async function main() {
     await transfer(args, state);
     return;
   }
-
-  process.stdout.write("Checking CrowdNode API... ");
-  await CrowdNode.init({
-    baseUrl: "https://app.crowdnode.io",
-    insightBaseUrl,
-    insightApi: insightApi,
-  });
-  state.hotwallet = CrowdNode.main.hotwallet;
-  console.info(`hotwallet is ${state.hotwallet}`);
 
   state.status = await CrowdNode.status(pub, state.hotwallet);
   if (state.status?.signup) {
