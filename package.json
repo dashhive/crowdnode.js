@@ -9,7 +9,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "files": [],
+  "files": [
+    "bin",
+    "lib",
+    "tsconfig.json",
+    "types.js"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dashhive/crowdnode.js.git"
