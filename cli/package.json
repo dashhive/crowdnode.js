@@ -15,7 +15,7 @@
     "url": "git+https://github.com/dashhive/crowdnode.js.git"
   },
   "dependencies": {
-    "crowdnode": "^1.0"
+    "crowdnode": "^1.0.1"
   },
   "keywords": [
     "Dash",
