@@ -27,10 +27,14 @@ PATH %USERPROFILE%\.local\opt\node;%PATH%
 ## CrowdNode CLI
 
 ```bash
+# Install to system, globally
 npm install --location=global crowdnode-cli@v1
 ```
 
+Or
+
 ```bash
+# Run without installing 
 npx crowdnode-cli@v1
 ```
 
