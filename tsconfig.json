@@ -71,6 +71,6 @@
     "skipLibCheck": true /* Skip type checking of declaration files. */,
     "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */
   },
-  "include": ["./types.js", "server.js", "lib/**/*.js"],
+  "include": ["./types.js", "server.js", "bin/**/*.js", "lib/**/*.js"],
   "exclude": ["node_modules"]
 }

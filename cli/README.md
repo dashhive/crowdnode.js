@@ -83,17 +83,22 @@ You will be given these options whenever the existing balance is low.
 ```bash
 Usage:
     crowdnode help
-    crowdnode status ./privkey.wif
-    crowdnode signup ./privkey.wif
-    crowdnode accept ./privkey.wif
-    crowdnode deposit ./privkey.wif [dash-amount] [--no-reserve]
-    crowdnode withdrawal ./privkey.wif <percent> # 1.0-100.0 (steps by 0.1)
+    crowdnode status [keyfile-or-addr]
+    crowdnode signup [keyfile-or-addr]
+    crowdnode accept [keyfile-or-addr]
+    crowdnode deposit [keyfile-or-addr] [dash-amount] [--no-reserve]
+    crowdnode withdrawal [keyfile-or-addr] <percent> # 1.0-100.0 (steps by 0.1)
 
 Helpful Extras:
     crowdnode generate [./privkey.wif]
-    crowdnode load [./privkey.wif] [dash-amount]
-    crowdnode balance ./privkey.wif
-    crowdnode transfer ./source.wif <key-file-or-pub-addr> [dash-amount]
+    crowdnode list
+    crowdnode encrypt # TODO
+    crowdnode decrypt # TODO
+    crowdnode use <addr>
+    crowdnode load [keyfile-or-addr] [dash-amount]
+    crowdnode balance [keyfile-or-addr]
+    crowdnode transfer <from-keyfile-or-addr> <to-keyfile-or-addr> [dash-amount]
+    crowdnode rm <keyfile-or-addr>
 
 CrowdNode HTTP RPC:
     crowdnode http FundsOpen <addr>
