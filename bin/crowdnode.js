@@ -314,20 +314,19 @@ async function generate(name) {
     return;
   }
 
-  await Fs.writeFile(filepath, wif, "utf8").then(function () {
-    console.info(``);
-    console.info(
-      `Use the QR Code below to load a test deposit of Đ${testDash} onto your staking key.`,
-    );
-    console.info(``);
-    showQr(pub, testDuff);
-    console.info(``);
-    console.info(
-      `Use the QR Code above to load a test deposit of Đ${testDash} onto your staking key.`,
-    );
-    console.info(``);
-    console.info(`Generated ${filepath} ${note}`);
-  });
+  await Fs.writeFile(filepath, wif, "utf8");
+  console.info(``);
+  console.info(
+    `Use the QR Code below to load a test deposit of Đ${testDash} onto your staking key.`,
+  );
+  console.info(``);
+  showQr(pub, testDuff);
+  console.info(``);
+  console.info(
+    `Use the QR Code above to load a test deposit of Đ${testDash} onto your staking key.`,
+  );
+  console.info(``);
+  console.info(`Generated ${filepath} ${note}`);
   process.exit(0);
 }
 
