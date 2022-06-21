@@ -25,18 +25,16 @@ let qrWidth = 2 + 67 + 2;
 //   0.00238608 // minimum recommended amount
 // Target:
 //   0.01000000
-let signupFees =
-  CrowdNode.requests.signupForApi +
-  CrowdNode.requests.acceptTerms +
-  2 * CrowdNode.requests.offset;
-let feeEstimate = 2 * 1000;
+let signupOnly = CrowdNode.requests.signupForApi + CrowdNode.requests.offset;
+let acceptOnly = CrowdNode.requests.acceptTerms + CrowdNode.requests.offset;
+let signupFees = signupOnly + acceptOnly;
+let feeEstimate = 500;
+let signupTotal = signupFees + 2 * feeEstimate;
 
-let signupTotal = signupFees + feeEstimate;
-
-function showQr(signupAddr, amount = 0) {
+function showQr(signupAddr, duffs = 0) {
   let signupUri = `dash://${signupAddr}`;
-  if (amount) {
-    signupUri += `?amount=${amount}`;
+  if (duffs) {
+    signupUri += `?amount=${duffs}`;
   }
 
   let signupQr = Qr.ascii(signupUri, { indent: 4 });
@@ -60,16 +58,20 @@ function showHelp() {
   console.info("    crowdnode status ./privkey.wif");
   console.info("    crowdnode signup ./privkey.wif");
   console.info("    crowdnode accept ./privkey.wif");
-  console.info("    crowdnode deposit ./privkey.wif [amount] [--no-reserve]");
   console.info(
-    "    crowdnode withdrawal ./privkey.wif <permil> # 1-1000 (1.0-100.0%)",
+    "    crowdnode deposit ./privkey.wif [dash-amount] [--no-reserve]",
+  );
+  console.info(
+    "    crowdnode withdrawal ./privkey.wif <percent> # 1.0-100.0 (steps by 0.1)",
   );
   console.info("");
 
   console.info("Helpful Extras:");
   console.info("    crowdnode generate [./privkey.wif]");
   console.info("    crowdnode balance ./privkey.wif");
-  console.info("    crowdnode transfer ./source.wif <key-file-or-pub-addr>");
+  console.info(
+    "    crowdnode transfer ./source.wif <key-file-or-pub-addr> [dash-amount]",
+  );
   console.info("");
 
   console.info("CrowdNode HTTP RPC:");
@@ -102,7 +104,7 @@ async function main() {
   // Usage:
   //    crowdnode <subcommand> [flags] <privkey> [options]
   // Example:
-  //    crowdnode withdrawal --unconfirmed ./Xxxxpubaddr.wif 1000
+  //    crowdnode withdrawal ./Xxxxpubaddr.wif 100.0
 
   let args = process.argv.slice(2);
 
@@ -190,7 +192,7 @@ async function main() {
   // deposit if balance is over 100,000 (0.00100000)
   process.stdout.write("Checking balance... ");
   let balanceInfo = await dashApi.getInstantBalance(pub);
-  console.info(`${balanceInfo.balanceSat} (${balanceInfo.balance})`);
+  console.info(`${balanceInfo.balanceSat} (Đ${balanceInfo.balance})`);
   /*
   let balanceInfo = await insightApi.getBalance(pub);
   if (balanceInfo.unconfirmedBalanceSat || balanceInfo.unconfirmedAppearances) {
@@ -331,17 +333,21 @@ async function balance(args, state) {
   return;
 }
 
+// ex: node ./bin/crowdnode.js transfer ./priv.wif 'pub' 0.01
 async function transfer(args, state) {
   let newAddr = await wifFileToAddr(process.argv[4]);
-  let amount = parseInt(process.argv[5] || 0, 10);
+  let dashAmount = parseFloat(process.argv[5] || 0);
+  let duffAmount = Math.round(dashAmount * DUFFS);
   let tx;
-  if (amount) {
-    tx = await state.dashApi.createPayment(state.privKey, newAddr, amount);
+  if (duffAmount) {
+    tx = await state.dashApi.createPayment(state.privKey, newAddr, duffAmount);
   } else {
     tx = await state.dashApi.createBalanceTransfer(state.privKey, newAddr);
   }
-  if (amount) {
-    console.info(`Transferring ${amount} to ${newAddr}...`);
+  if (duffAmount) {
+    console.info(
+      `Transferring ${duffAmount} (Đ${dashAmount}) to ${newAddr}...`,
+    );
   } else {
     console.info(`Transferring balance to ${newAddr}...`);
   }
@@ -385,7 +391,7 @@ async function signup(args, state) {
     return;
   }
 
-  let hasEnough = state.balanceInfo.balanceSat > signupTotal;
+  let hasEnough = state.balanceInfo.balanceSat > signupOnly + feeEstimate;
   if (!hasEnough) {
     await collectSignupFees(state.insightBaseUrl, state.pub);
   }
@@ -409,7 +415,7 @@ async function accept(args, state) {
     process.exit(0);
     return;
   }
-  let hasEnough = state.balanceInfo.balanceSat > signupTotal;
+  let hasEnough = state.balanceInfo.balanceSat > acceptOnly + feeEstimate;
   if (!hasEnough) {
     await collectSignupFees(state.insightBaseUrl, state.pub);
   }
@@ -432,10 +438,10 @@ async function deposit(args, state) {
 
   // this would allow for at least 2 withdrawals costing (21000 + 1000)
   let reserve = 50000;
-  let reserveDash = (reserve / DUFFS).toFixed(8);
+  let reserveDash = toDash(reserve);
   if (!state.noReserve) {
     console.info(
-      `reserving ${reserve} (${reserveDash}) for withdrawals (--no-reserve to disable)`,
+      `reserving ${reserve} (Đ${reserveDash}) for withdrawals (--no-reserve to disable)`,
     );
   } else {
     reserve = 0;
@@ -445,8 +451,9 @@ async function deposit(args, state) {
 
   // deposit what the user asks, or all that we have,
   // or all that the user deposits - but at least 2x the reserve
-  let desiredAmount = parseInt(args.shift() || 0, 10);
-  let effectiveAmount = desiredAmount;
+  let desiredAmountDash = parseFloat(args.shift() || 0);
+  let desiredAmountDuff = Math.round(desiredAmountDash * DUFFS);
+  let effectiveAmount = desiredAmountDuff;
   if (!effectiveAmount) {
     effectiveAmount = state.balanceInfo.balanceSat - reserve;
   }
@@ -454,25 +461,31 @@ async function deposit(args, state) {
 
   if (state.balanceInfo.balanceSat < needed) {
     let ask = 0;
-    if (desiredAmount) {
-      ask = desiredAmount + reserve + -state.balanceInfo.balanceSat;
+    if (desiredAmountDuff) {
+      ask = desiredAmountDuff + reserve + -state.balanceInfo.balanceSat;
     }
     await collectDeposit(state.insightBaseUrl, state.pub, ask);
     state.balanceInfo = await state.dashApi.getInstantBalance(state.pub);
     if (state.balanceInfo.balanceSat < needed) {
+      let balanceDash = toDash(state.balanceInfo.balanceSat);
       console.error(
-        `Balance is still too small: ${state.balanceInfo.balanceSat}`,
+        `Balance is still too small: ${state.balanceInfo.balanceSat} (Đ${balanceDash})`,
       );
       process.exit(1);
       return;
     }
   }
-  if (!desiredAmount) {
+  if (!desiredAmountDuff) {
     effectiveAmount = state.balanceInfo.balanceSat - reserve;
   }
 
-  console.info(`(holding ${reserve} in reserve for API calls)`);
-  console.info(`Initiating deposit of ${effectiveAmount}...`);
+  console.info(
+    `(holding ${reserve} (Đ${reserveDash}) in reserve for API calls)`,
+  );
+  let effectiveDash = toDash(effectiveAmount);
+  console.info(
+    `Initiating deposit of ${effectiveAmount} (Đ${effectiveDash})...`,
+  );
   await CrowdNode.deposit(state.privKey, state.hotwallet, effectiveAmount);
   state.deposit = "✅";
   console.info(`    ${state.deposit} DepositReceived`);
@@ -487,10 +500,25 @@ async function withdrawal(args, state) {
     return;
   }
 
-  let amount = parseInt(args.shift() || 1000, 10);
+  let percentStr = args.shift() || "100.0";
+  // pass: .1 0.1, 1, 1.0, 10, 10.0, 100, 100.0
+  // fail: 1000, 10.00
+  if (!/^1?\d?\d?(\.\d)?$/.test(percentStr)) {
+    console.error("Error: withdrawal percent must be between 0.1 and 100.0");
+    process.exit(1);
+  }
+  let percent = parseFloat(percentStr);
 
-  console.info("Initiating withdrawal...");
-  let paid = await CrowdNode.withdrawal(state.privKey, state.hotwallet, amount);
+  let permil = Math.round(percent * 10);
+  if (permil <= 0 || permil > 1000) {
+    console.error("Error: withdrawal percent must be between 0.1 and 100.0");
+    process.exit(1);
+  }
+
+  let realPercentStr = (permil / 10).toFixed(1);
+  console.info(`Initiating withdrawal of ${realPercentStr}...`);
+
+  let paid = await CrowdNode.withdrawal(state.privKey, state.hotwallet, permil);
   //let paidFloat = (paid.satoshis / DUFFS).toFixed(8);
   //let paidInt = paid.satoshis.toString().padStart(9, "0");
   console.info(`API Response: ${paid.api}`);
@@ -534,7 +562,7 @@ async function collectSignupFees(insightBaseUrl, pub) {
   showQr(pub);
 
   let signupTotalDash = (signupTotal / DUFFS).toFixed(8);
-  let signupMsg = `Please send >= ${signupTotal} (${signupTotalDash}) to Sign Up to CrowdNode`;
+  let signupMsg = `Please send >= ${signupTotal} (Đ${signupTotalDash}) to Sign Up to CrowdNode`;
   let msgPad = Math.ceil((qrWidth - signupMsg.length) / 2);
   let subMsg = "(plus whatever you'd like to deposit)";
   let subMsgPad = Math.ceil((qrWidth - subMsg.length) / 2);
@@ -551,13 +579,13 @@ async function collectSignupFees(insightBaseUrl, pub) {
   console.info(`Received ${payment.satoshis}`);
 }
 
-async function collectDeposit(insightBaseUrl, pub, amount) {
-  showQr(pub, amount);
+async function collectDeposit(insightBaseUrl, pub, duffAmount) {
+  showQr(pub, duffAmount);
 
   let depositMsg = `Please send what you wish to deposit to ${pub}`;
-  if (amount) {
-    let depositDash = (amount / DUFFS).toFixed(8);
-    depositMsg = `Please deposit ${amount} (${depositDash}) to ${pub}`;
+  if (duffAmount) {
+    let depositDash = toDash(duffAmount);
+    depositMsg = `Please deposit ${duffAmount} (Đ${depositDash}) to ${pub}`;
   }
 
   let msgPad = Math.ceil((qrWidth - depositMsg.length) / 2);
@@ -572,6 +600,10 @@ async function collectDeposit(insightBaseUrl, pub, amount) {
   console.info("");
   let payment = await Ws.waitForVout(insightBaseUrl, pub, 0);
   console.info(`Received ${payment.satoshis}`);
+}
+
+function toDash(duffs) {
+  return (duffs / DUFFS).toFixed(8);
 }
 
 // Run

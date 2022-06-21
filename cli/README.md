@@ -12,14 +12,16 @@ their KYC-free Blockchain CLI.
 
 You must have [node.js](https://webinstall.dev/node) installed:
 
+### Mac & Linux
+
 ```bash
-# Mac, Linux
 curl https://webinstall.dev/node | bash
 export PATH="${HOME}/.local/opt/node:$PATH"
 ```
 
+### Windows
+
 ```pwsh
-# Windows
 curl.exe -A MS https://webinstall.dev/node | powershell
 PATH %USERPROFILE%\.local\opt\node;%PATH%
 ```
@@ -34,7 +36,7 @@ npm install --location=global crowdnode-cli@v1
 Or
 
 ```bash
-# Run without installing 
+# Run without installing
 npx crowdnode-cli@v1
 ```
 
@@ -71,9 +73,9 @@ You will be given these options whenever the existing balance is low.
    ```bash
    crowdnode accept ./privkey.wif
    ```
-3. Deposit your stake
+3. Deposit your stake (in Dash)
    ```bash
-   crowdnode deposit ./privkey.wif
+   crowdnode deposit ./privkey.wif 10.0
    ```
 
 ## All Commmands
@@ -84,13 +86,13 @@ Usage:
     crowdnode status ./privkey.wif
     crowdnode signup ./privkey.wif
     crowdnode accept ./privkey.wif
-    crowdnode deposit ./privkey.wif [amount] [--no-reserve]
-    crowdnode withdrawal ./privkey.wif <permil> # 1-1000 (1.0-100.0%)
+    crowdnode deposit ./privkey.wif [dash-amount] [--no-reserve]
+    crowdnode withdrawal ./privkey.wif <percent> # 1.0-100.0 (steps by 0.1)
 
 Helpful Extras:
     crowdnode generate [./privkey.wif]
     crowdnode balance ./privkey.wif
-    crowdnode transfer ./source.wif <key-file-or-pub-addr>
+    crowdnode transfer ./source.wif <key-file-or-pub-addr> [dash-amount]
 
 CrowdNode HTTP RPC:
     crowdnode http FundsOpen <addr>
@@ -108,12 +110,11 @@ CrowdNode HTTP RPC:
 
 ## Glossary
 
-| Term          | Description                                                   |
-| ------------- | ------------------------------------------------------------- |
-| addr          | your Dash address (Base58Check-encoded Pay-to-PubKey Address) |
-| amount        | the integer value of "Duffs" (Đ/100000000)                    |
-| permil        | 1/1000, 1‰, or 0.1% - between 1 and 1000 (0.1% to 100.0%)     |
-| ./privkey.wif | the file path to your staking key in WIF (Base58Check) format |
+| Term          | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| addr          | your Dash address (Base58Check-encoded Pay-to-PubKey Address)        |
+| ./privkey.wif | the file path to your staking key in WIF (Base58Check) format        |
+| signature     | generated with [dashmsg](https://webinstall.dev/dashmsg) or dash-cli |
 
 # JS API Documentation
 

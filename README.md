@@ -13,14 +13,16 @@ Blockchain API.
 
 You must have [node.js](https://webinstall.dev/node) installed:
 
+### Mac & Linux
+
 ```bash
-# Mac, Linux
 curl https://webinstall.dev/node | bash
 export PATH="${HOME}/.local/opt/node:$PATH"
 ```
 
+### Windows
+
 ```pwsh
-# Windows
 curl.exe -A MS https://webinstall.dev/node | powershell
 PATH %USERPROFILE%\.local\opt\node;%PATH%
 ```
@@ -35,6 +37,16 @@ npm install --save crowdnode@v1
 
 The SDK also provides Type Hinting via JSDoc (compatible with TypeScript / tsc
 without any transpiling).
+
+## IMPORTANT
+
+The CLI is denominated in **Dash** and **Percent** because those are the units
+most customers are familiar with and can easily calculate in their heads without
+making "careless" mistakes.
+
+HOWEVER, the SDK and CrowdNode API are denominated in **Duffs** (Satoshis) and
+**Permil** (Permille) because those are the whole units that are easiest to
+compute.
 
 ## QuickStart
 
@@ -53,7 +65,7 @@ let CrowdNode = require("crowdnode");
 async function main() {
   let keyfile = process.argv[2];
 
-  // a wallet pre-loaded with about Đ0.001
+  // a wallet pre-loaded with about Đ0.01
   let wif = await Fs.readFile(keyfile, "utf8");
   wif = wif.trim();
 
@@ -146,6 +158,7 @@ await CrowdNode.accept(wif, hotwallet);
  * }
  */
 
+// amount given in DUFFs
 await CrowdNode.deposit(wif, hotwallet, (amount = 0));
 /** @type SocketPayment
  * {
@@ -157,6 +170,7 @@ await CrowdNode.deposit(wif, hotwallet, (amount = 0));
  * }
  */
 
+// permil is 1/10 percent, 500 permil = 50.0 percent
 await CrowdNode.withdrawal(wif, hotwallet, permil);
 /** @type SocketPayment
  * {
@@ -232,6 +246,15 @@ await CrowdNode.http.FundsOpen(pub);
 await CrowdNode.http.VotingOpen(pub);
 /* ${baseUrl}/VotingOpen/${pub} */
 ```
+
+## Glossary
+
+| Term          | Description                                                   |
+| ------------- | ------------------------------------------------------------- |
+| addr          | your Dash address (Base58Check-encoded Pay-to-PubKey Address) |
+| amount        | the integer value of "Duffs" (Đ/100000000)                    |
+| permil        | 1/1000, 1‰, or 0.1% - between 1 and 1000 (0.1% to 100.0%)     |
+| ./privkey.wif | the file path to your staking key in WIF (Base58Check) format |
 
 # CLI Documentation
 
