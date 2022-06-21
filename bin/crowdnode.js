@@ -301,11 +301,14 @@ async function generate(name) {
     note = `\n(for pubkey address ${pub})`;
   }
 
+  let testDash = 0.01;
+  let testDuff = toDuff(testDash);
+
   let err = await Fs.access(filepath).catch(Object);
   if (!err) {
     // TODO show QR anyway
     //wif = await Fs.readFile(filepath, 'utf8')
-    //showQr(pub, 0.01);
+    //showQr(pub, testDuff);
     console.info(`'${filepath}' already exists (will not overwrite)`);
     process.exit(0);
     return;
@@ -314,13 +317,13 @@ async function generate(name) {
   await Fs.writeFile(filepath, wif, "utf8").then(function () {
     console.info(``);
     console.info(
-      `Use the QR Code below to load a test deposit of Đ0.01 onto your staking key.`,
+      `Use the QR Code below to load a test deposit of Đ${testDash} onto your staking key.`,
     );
     console.info(``);
-    showQr(pub, 0.01);
+    showQr(pub, testDuff);
     console.info(``);
     console.info(
-      `Use the QR Code above to load a test deposit of Đ0.01 onto your staking key.`,
+      `Use the QR Code above to load a test deposit of Đ${testDash} onto your staking key.`,
     );
     console.info(``);
     console.info(`Generated ${filepath} ${note}`);
@@ -611,6 +614,10 @@ async function collectDeposit(insightBaseUrl, pub, duffAmount) {
 
 function toDash(duffs) {
   return (duffs / DUFFS).toFixed(8);
+}
+
+function toDuff(dash) {
+  return Math.round(parseFloat(dash) * DUFFS);
 }
 
 // Run
