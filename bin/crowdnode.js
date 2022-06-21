@@ -192,7 +192,8 @@ async function main() {
   // deposit if balance is over 100,000 (0.00100000)
   process.stdout.write("Checking balance... ");
   let balanceInfo = await dashApi.getInstantBalance(pub);
-  console.info(`${balanceInfo.balanceSat} (Đ${balanceInfo.balance})`);
+  let balanceDash = toDash(balanceInfo.balanceSat);
+  console.info(`${balanceInfo.balanceSat} (Đ${balanceDash})`);
   /*
   let balanceInfo = await insightApi.getBalance(pub);
   if (balanceInfo.unconfirmedBalanceSat || balanceInfo.unconfirmedAppearances) {
@@ -345,8 +346,9 @@ async function transfer(args, state) {
     tx = await state.dashApi.createBalanceTransfer(state.privKey, newAddr);
   }
   if (duffAmount) {
+    let dashAmountStr = toDash(duffAmount);
     console.info(
-      `Transferring ${duffAmount} (Đ${dashAmount}) to ${newAddr}...`,
+      `Transferring ${duffAmount} (Đ${dashAmountStr}) to ${newAddr}...`,
     );
   } else {
     console.info(`Transferring balance to ${newAddr}...`);
@@ -487,9 +489,6 @@ async function deposit(args, state) {
     effectiveAmount = state.balanceInfo.balanceSat - reserve;
   }
 
-  console.info(
-    `(holding ${reserve} (Đ${reserveDash}) in reserve for API calls)`,
-  );
   let effectiveDash = toDash(effectiveAmount);
   console.info(
     `Initiating deposit of ${effectiveAmount} (Đ${effectiveDash})...`,
@@ -569,7 +568,7 @@ async function wifFileToAddr(keyfile) {
 async function collectSignupFees(insightBaseUrl, pub) {
   showQr(pub);
 
-  let signupTotalDash = (signupTotal / DUFFS).toFixed(8);
+  let signupTotalDash = toDash(signupTotal);
   let signupMsg = `Please send >= ${signupTotal} (Đ${signupTotalDash}) to Sign Up to CrowdNode`;
   let msgPad = Math.ceil((qrWidth - signupMsg.length) / 2);
   let subMsg = "(plus whatever you'd like to deposit)";
