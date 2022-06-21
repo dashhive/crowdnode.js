@@ -68,6 +68,7 @@ function showHelp() {
 
   console.info("Helpful Extras:");
   console.info("    crowdnode generate [./privkey.wif]");
+  console.info("    crowdnode load [./privkey.wif]");
   console.info("    crowdnode balance ./privkey.wif");
   console.info(
     "    crowdnode transfer ./source.wif <key-file-or-pub-addr> [dash-amount]",
@@ -135,6 +136,18 @@ async function main() {
     process.env.INSIGHT_BASE_URL || "https://insight.dash.org";
   let insightApi = Insight.create({ baseUrl: insightBaseUrl });
   let dashApi = Dash.create({ insightApi: insightApi });
+
+  if ("load" === subcommand) {
+    await load(
+      {
+        dashApi: dashApi,
+        insightBaseUrl: insightBaseUrl,
+        insightApi: insightApi,
+      },
+      args,
+    );
+    return;
+  }
 
   process.stdout.write("Checking CrowdNode API... ");
   await CrowdNode.init({
@@ -327,6 +340,57 @@ async function generate(name) {
   );
   console.info(``);
   console.info(`Generated ${filepath} ${note}`);
+  process.exit(0);
+}
+
+async function load(psuedoState, args) {
+  let name = args.shift();
+
+  // TODO factor out the common bits from generate?
+  let pk = new Dashcore.PrivateKey();
+
+  let pub = pk.toAddress().toString();
+  let wif = pk.toWIF();
+
+  let filepath = `./${pub}.wif`;
+  let note = "";
+  if (name) {
+    filepath = name;
+    note = `\n(for pubkey address ${pub})`;
+  }
+
+  let err = await Fs.access(filepath).catch(Object);
+  if (!err) {
+    console.info(`'${filepath}' already exists (will not overwrite)`);
+  } else {
+    await Fs.writeFile(filepath, wif, "utf8");
+    console.info(`Generated ${filepath} ${note}`);
+  }
+
+  let desiredAmountDash = parseFloat(args.shift() || 0);
+  let desiredAmountDuff = Math.round(desiredAmountDash * DUFFS);
+  let effectiveDuff = desiredAmountDuff;
+  let effectiveDash = "";
+  if (!effectiveDuff) {
+    effectiveDuff = CrowdNode.stakeMinimum + signupTotal + feeEstimate;
+    effectiveDash = toDash(effectiveDuff);
+    // Round to the nearest mDash
+    // ex: 0.50238108 => 0.50300000
+    effectiveDuff = toDuff(Math.ceil(effectiveDash * 1000) / 1000);
+    effectiveDash = toDash(effectiveDuff);
+  }
+
+  console.info(``);
+  showQr(pub, effectiveDuff);
+  console.info(``);
+  console.info(
+    `Use the QR Code above to load ${effectiveDuff} (Đ${effectiveDash}) onto your staking key.`,
+  );
+  console.info(``);
+  console.info(`(waiting...)`);
+  console.info(``);
+  let payment = await Ws.waitForVout(psuedoState.insightBaseUrl, pub, 0);
+  console.info(`Received ${payment.satoshis}`);
   process.exit(0);
 }
 
@@ -568,6 +632,7 @@ async function wifFileToAddr(keyfile) {
 }
 
 async function collectSignupFees(insightBaseUrl, pub) {
+  console.info(``);
   showQr(pub);
 
   let signupTotalDash = toDash(signupTotal);
@@ -589,6 +654,7 @@ async function collectSignupFees(insightBaseUrl, pub) {
 }
 
 async function collectDeposit(insightBaseUrl, pub, duffAmount) {
+  console.info(``);
   showQr(pub, duffAmount);
 
   let depositMsg = `Please send what you wish to deposit to ${pub}`;

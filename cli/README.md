@@ -91,6 +91,7 @@ Usage:
 
 Helpful Extras:
     crowdnode generate [./privkey.wif]
+    crowdnode load [./privkey.wif] [dash-amount]
     crowdnode balance ./privkey.wif
     crowdnode transfer ./source.wif <key-file-or-pub-addr> [dash-amount]
 
