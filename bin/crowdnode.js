@@ -375,6 +375,14 @@ async function status(args, state) {
   console.info(`    ${state.accept} AcceptTerms`);
   console.info(`    ${state.deposit} DepositReceived`);
   console.info();
+  let pk = new Dashcore.PrivateKey(state.privKey);
+  let pub = pk.toPublicKey().toAddress().toString();
+  let crowdNodeBalance = await CrowdNode.http.GetBalance(pub);
+  let crowdNodeDash = toDash(crowdNodeBalance.TotalBalance);
+  console.info(
+    `CrowdNode Stake: ${crowdNodeBalance.TotalBalance} (Đ${crowdNodeDash})`,
+  );
+  console.info();
   process.exit(0);
   return;
 }
