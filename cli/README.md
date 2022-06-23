@@ -62,20 +62,20 @@ You will be given these options whenever the existing balance is low.
 
 0. Generate a **permanent** staking key (just one):
    ```bash
-   crowdnode generate ./privkey.wif
+   crowdnode generate
    ```
    (and put a backup in a safe place)
 1. Send a (tiny) Sign Up payment (Đ0.00151072)
    ```bash
-   crowdnode signup ./privkey.wif
+   crowdnode signup
    ```
 2. Accept the Terms of Use via payment (Đ0.00085536)
    ```bash
-   crowdnode accept ./privkey.wif
+   crowdnode accept
    ```
-3. Deposit your stake (in Dash)
+3. Deposit your stake (in DASH)
    ```bash
-   crowdnode deposit ./privkey.wif 10.0
+   crowdnode deposit 0.01
    ```
 
 ## All Commmands
