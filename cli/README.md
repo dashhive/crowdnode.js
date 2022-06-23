@@ -51,18 +51,10 @@ The Dash you stake **can NOT be retrieved** without this key!
 - Generate a new staking key, or Import from an existing wallet
 - Load the key with Dash
 - Sign up & Accept the CrowdNode's Terms
-- 
-You can use an existing key, or generate a new one just for CrowdNode. \
-(I recommend printing a Paper Wallet (WIF QR) and sticking it in your safe)
+- Deposit
+- Withdrawal and Transfer at any time
 
-You can preload your staking key with the amount you wish to stake, or deposit
-when prompted via
-
-- QR Code
-- Dash URL
-- or Payment Address
-
-You will be given these options whenever the existing balance is low.
+Note: I recommend printing a Paper Wallet (WIF QR) and putting it your safe.
 
 0. Generate or Import a **permanent** staking key:
    ```bash
