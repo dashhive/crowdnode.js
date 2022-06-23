@@ -74,7 +74,7 @@ function showHelp() {
   console.info("");
 
   console.info("Key Management & Encryption:");
-  console.info("    crowdnode generate [./privkey.wif]");
+  console.info("    crowdnode generate [--plain-text] [./privkey.wif]");
   console.info("    crowdnode encrypt"); // TODO allow encrypting one-by-one?
   console.info("    crowdnode list");
   console.info("    crowdnode use <addr>");
@@ -119,6 +119,7 @@ async function main() {
 
   // flags
   let forceConfirm = removeItem(args, "--unconfirmed");
+  let plainText = removeItem(args, "--plain-text");
   let noReserve = removeItem(args, "--no-reserve");
 
   let subcommand = args.shift();
@@ -158,7 +159,7 @@ async function main() {
   }
 
   if ("generate" === subcommand) {
-    await generateKey({ defaultKey: defaultAddr }, args);
+    await generateKey({ defaultKey: defaultAddr, plainText }, args);
     return;
   }
 
@@ -559,9 +560,10 @@ async function mustGetDefaultWif(defaultAddr, opts) {
 /**
  * @param {Object} psuedoState
  * @param {String} psuedoState.defaultKey - addr name of default key
+ * @param {Boolean} psuedoState.plainText - don't encrypt
  * @param {Array<String>} args
  */
-async function generateKey({ defaultKey }, args) {
+async function generateKey({ defaultKey, plainText }, args) {
   let name = args.shift();
   //@ts-ignore - TODO submit JSDoc PR for Dashcore
   let pk = new Dashcore.PrivateKey();
@@ -569,7 +571,10 @@ async function generateKey({ defaultKey }, args) {
   let addr = pk.toAddress().toString();
   let plainWif = pk.toWIF();
 
-  let wif = await maybeEncrypt(plainWif);
+  let wif = plainWif;
+  if (!plainText) {
+    wif = await maybeEncrypt(plainWif);
+  }
 
   let filename = `~/${configdir}/keys/${addr}.wif`;
   let filepath = Path.join(`${keysDir}/${addr}.wif`);

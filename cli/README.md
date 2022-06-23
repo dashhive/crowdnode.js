@@ -90,15 +90,19 @@ Usage:
     crowdnode withdrawal [keyfile-or-addr] <percent> # 1.0-100.0 (steps by 0.1)
 
 Helpful Extras:
-    crowdnode generate [./privkey.wif]
-    crowdnode list
-    crowdnode encrypt # TODO
-    crowdnode decrypt # TODO
-    crowdnode use <addr>
-    crowdnode load [keyfile-or-addr] [dash-amount]
     crowdnode balance [keyfile-or-addr]
+    crowdnode load [keyfile-or-addr] [dash-amount]
     crowdnode transfer <from-keyfile-or-addr> <to-keyfile-or-addr> [dash-amount]
-    crowdnode rm <keyfile-or-addr>
+
+Key Management & Encryption:
+    crowdnode generate [./privkey.wif] [--plain-text]
+    crowdnode list
+    crowdnode use <addr>            # set as default key
+    crowdnode passphrase            # set or rotate passphrase
+    crowdnode import <keyfile>      # copy and encrypt key
+    crowdnode encrypt               # encrypt all keys
+    crowdnode decrypt               # decrypt all keys
+    crowdnode delete <addr>         # delete key (must have 0 balance)
 
 CrowdNode HTTP RPC:
     crowdnode http FundsOpen <addr>
