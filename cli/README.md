@@ -1,10 +1,10 @@
 # CrowdNode CLI
 
-CrowdNode allows you to become a partial MNO - staking Dash to earn interest,
-participate in voting, etc.
+[CrowdNode](https://crowdnode.io/) allows you to become a partial MNO - staking
+Dash to earn interest, participate in voting, etc.
 
 This cross-platform CrowdNode CLI enables you to privately manage your stake via
-their KYC-free Blockchain CLI.
+their KYC-free Blockchain API.
 
 # Install
 
@@ -48,6 +48,10 @@ The Dash you stake **can NOT be retrieved** without this key!
 
 ## QuickStart
 
+- Generate a new staking key, or Import from an existing wallet
+- Load the key with Dash
+- Sign up & Accept the CrowdNode's Terms
+- 
 You can use an existing key, or generate a new one just for CrowdNode. \
 (I recommend printing a Paper Wallet (WIF QR) and sticking it in your safe)
 
@@ -60,23 +64,55 @@ when prompted via
 
 You will be given these options whenever the existing balance is low.
 
-0. Generate a **permanent** staking key (just one):
+0. Generate or Import a **permanent** staking key:
    ```bash
+   # Generate a new key in your CrowdNode CLI wallet:
    crowdnode generate
    ```
-   (and put a backup in a safe place)
-1. Send a (tiny) Sign Up payment (Đ0.00151072)
+   Or
    ```bash
-   crowdnode signup
+   # Save a key from dash-cli or Dash Core's Debug Console to a file for import:
+   #    walletpassphrase "YOUR PASSHRASE" 300
+   #    dumprivkey XxYOURxADDRESSx
+   #
+   # Import to the CrowdNode CLI wallet:
+   crowdnode import ./your-key-file.wif.txt
    ```
-2. Accept the Terms of Use via payment (Đ0.00085536)
+1. Load the amount of Dash you wish to stake, plus a little extra for fees:
    ```bash
+   crowdnode load 0.503
+   ```
+   (you can load a balance via **QR Code**, Dash URL, and Payment Address)
+2. Send the Sign Up request and the [CrowdNode Terms of Service](https://crowdnode.io/terms/):
+   ```bash
+   # Sign Up sends Đ0.00151072 to create your account
+   crowdnode signup
+   
+   # Accept sends Đ0.00085536 to accept terms and enable deposits
    crowdnode accept
    ```
-3. Deposit your stake (in DASH)
+3. Deposit a test stake (in DASH)
    ```bash
+   # Create a test deposit:
    crowdnode deposit 0.01
+   
+   # Stake the remaining balance:
+   crowdnode deposit
+   
+   # Load and stake another Đ10:
+   crowdnode deposit 10.0
    ```
+   Note: CrowdNode requires a minimum stake of Đ0.5 to earn interest.
+
+You can withdrawal from 1.0% to 100.0% of your stake at any time, and transfer to an address in another wallet:
+
+```bash
+# Withdrawal 5.0%
+crowdnode withdrawal 5.0
+
+# Transfer your balance
+crowdnode transfer XxYOURxOTHERxADDRESSx 5.0
+```
 
 ## All Commmands
 
