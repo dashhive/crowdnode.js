@@ -1,4 +1,4 @@
-# CrowdNode Node.js SDK
+# [CrowdNode Node.js SDK](https://github.com/dashhive/crowdnode.js)
 
 CrowdNode allows you to become a partial MNO - staking Dash to earn interest,
 participate in voting, etc.
@@ -258,7 +258,7 @@ await CrowdNode.http.VotingOpen(pub);
 
 # CLI Documentation
 
-See <https://github.com/dashhive/crowdnode.js/tree/main/cli>.
+See <https://github.com/dashhive/crowdnode-cli>.
 
 # Official CrowdNode Docs
 
