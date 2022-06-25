@@ -337,7 +337,7 @@ function showQr(addr, duffs = 0) {
     dashUri += `?amount=${dashAmount}`;
   }
 
-  let dashQr = Qr.ascii(dashUri, { indent: 4 });
+  let dashQr = Qr.ascii(dashUri, { indent: 4, size: "micro" });
   let addrPad = Math.ceil((qrWidth - dashUri.length) / 2);
 
   console.info(dashQr);
