@@ -23,6 +23,7 @@ let Ws = require("../lib/ws.js");
 
 let Dashcore = require("@dashevo/dashcore-lib");
 
+const NO_SHADOW = "NONE";
 const DUFFS = 100000000;
 let qrWidth = 2 + 67 + 2;
 // Sign Up Fees:
@@ -198,7 +199,9 @@ async function main() {
     let addr = args.shift() || "";
     if (!addr) {
       await decryptAll(null);
-      await Fs.writeFile(shadowPath, "", "utf8").catch(emptyStringOnErrEnoent);
+      await Fs.writeFile(shadowPath, NO_SHADOW, "utf8").catch(
+        emptyStringOnErrEnoent,
+      );
       return;
     }
     let keypath = await findWif(addr);
@@ -619,6 +622,7 @@ async function setPassphrase({ _askPreviousPassphrase }, args) {
 
   // get the old passphrase
   if (false !== _askPreviousPassphrase) {
+    // TODO should contain the shadow?
     await cmds.getPassphrase({ _rotatePassphrase: true }, []);
   }
 
@@ -646,7 +650,7 @@ async function setPassphrase({ _askPreviousPassphrase }, args) {
     let filepath = Path.join(HOME, `${configdir}/keys.${date}.bak`);
     console.info(``);
     console.info(`Backing up previous (encrypted) keys:`);
-    encAddrs.unshift(curShadow);
+    encAddrs.unshift(`SHADOW:${curShadow}`);
     await Fs.writeFile(filepath, encAddrs.join("\n") + "\n", "utf8");
     console.info(`  ~/${configdir}/keys.${date}.bak`);
     console.info(``);
@@ -843,14 +847,12 @@ cmds.getPassphrase = async function ({ _rotatePassphrase, _force }, args) {
   //   2. empty shadow file (initialized, but not set - don't ask to set one)
   //   3. encrypted shadow file (initialized, requires passphrase)
   let needsInit = false;
-  let shadow = await Fs.readFile(shadowPath, "utf8").catch(function (err) {
-    if ("ENOENT" === err.code) {
-      needsInit = true;
-      return;
-    }
-    throw err;
-  });
-  if (!shadow && _force) {
+  let shadow = await Fs.readFile(shadowPath, "utf8").catch(
+    emptyStringOnErrEnoent,
+  );
+  if (!shadow) {
+    needsInit = true;
+  } else if (NO_SHADOW === shadow && _force) {
     needsInit = true;
   }
 
@@ -876,8 +878,8 @@ cmds.getPassphrase = async function ({ _rotatePassphrase, _force }, args) {
         continue;
       }
 
-      // No passphrase, create empty shadow file
-      await Fs.writeFile(shadowPath, "", "utf8");
+      // No passphrase, create a NONE shadow file
+      await Fs.writeFile(shadowPath, NO_SHADOW, "utf8");
       return result;
     }
   }
