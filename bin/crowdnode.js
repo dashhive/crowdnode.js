@@ -206,7 +206,8 @@ async function main() {
   }
 
   if ("import" === subcommand) {
-    await importKey(null, args);
+    let keypath = args.shift() || "";
+    await importKey({ keypath });
     process.exit(0);
     return;
   }
@@ -319,7 +320,8 @@ async function main() {
   // keeping rm for backwards compat
   if ("rm" === subcommand || "delete" === subcommand) {
     await initCrowdNode(insightBaseUrl);
-    await removeKey({ defaultAddr, dashApi, insightBaseUrl }, args);
+    let [addr, filepath] = await mustGetAddr({ defaultAddr }, args);
+    await removeKey({ addr, dashApi, filepath, insightBaseUrl }, args);
     process.exit(0);
     return;
   }
@@ -393,7 +395,8 @@ async function stakeDash(
   let err = await Fs.access(args[0]).catch(Object);
   let addr;
   if (!err) {
-    addr = await importKey(null, [args[0]]);
+    let keypath = args.shift() || "";
+    addr = await importKey({ keypath });
   } else if (forceGenerate) {
     addr = await generateKey({ defaultKey: defaultAddr }, []);
   } else {
@@ -882,11 +885,10 @@ async function promptPassphrase() {
 
 /**
  * Import and Encrypt
- * @param {Null} _
- * @param {Array<String>} args
+ * @param {Object} opts
+ * @param {String} opts.keypath
  */
-async function importKey(_, args) {
-  let keypath = args.shift() || "";
+async function importKey({ keypath }) {
   let key = await maybeReadKeyFileRaw(keypath);
   if (!key?.wif) {
     console.error(`no key found for '${keypath}'`);
@@ -1387,12 +1389,12 @@ function isNamedLikeKey(name) {
 /**
  * @param {Object} opts
  * @param {any} opts.dashApi - TODO
- * @param {String} opts.defaultAddr
+ * @param {String} opts.addr
+ * @param {String} opts.filepath
  * @param {String} opts.insightBaseUrl
  * @param {Array<String>} args
  */
-async function removeKey({ dashApi, defaultAddr, insightBaseUrl }, args) {
-  let [addr, name] = await mustGetAddr({ defaultAddr }, args);
+async function removeKey({ addr, dashApi, filepath, insightBaseUrl }, args) {
   let balanceInfo = await dashApi.getInstantBalance(addr);
 
   let balanceDash = toDash(balanceInfo.balanceSat);
@@ -1433,10 +1435,10 @@ async function removeKey({ dashApi, defaultAddr, insightBaseUrl }, args) {
   }
 
   let wifname = await findWif(addr);
-  let filepath = Path.join(keysDir, wifname);
-  let wif = await maybeReadKeyPaths(name, { wif: true });
+  let fullpath = Path.join(keysDir, wifname);
+  let wif = await maybeReadKeyPaths(filepath, { wif: true });
 
-  await Fs.unlink(filepath).catch(function (err) {
+  await Fs.unlink(fullpath).catch(function (err) {
     console.error(`could not remove ${filepath}: ${err.message}`);
     process.exit(1);
   });
