@@ -614,7 +614,7 @@ async function setPassphrase({ _askPreviousPassphrase }, args) {
 
   // get the old passphrase
   if (false !== _askPreviousPassphrase) {
-    await cmds.getPassphrase(null, []);
+    await cmds.getPassphrase({ _rotatePassphrase: true }, []);
   }
 
   // get the new passphrase
@@ -669,6 +669,37 @@ async function setPassphrase({ _askPreviousPassphrase }, args) {
   await encryptAll(rawKeys, { rotateKey: true });
 
   return newPassphrase;
+}
+
+/**
+ * Import and Encrypt
+ * @param {Null} _
+ * @param {Array<String>} args
+ */
+async function importKey(_, args) {
+  let keypath = args.shift() || "";
+  let key = await maybeReadKeyFileRaw(keypath);
+  if (!key?.wif) {
+    console.error(`no key found for '${keypath}'`);
+    process.exit(1);
+    return;
+  }
+
+  let encWif = await maybeEncrypt(key.wif);
+  let icon = "💾";
+  if (encWif.includes(":")) {
+    icon = "🔐";
+  }
+  let date = getFsDateString();
+
+  await safeSave(
+    Path.join(keysDir, `${key.addr}.wif`),
+    encWif,
+    Path.join(keysDir, `${key.addr}.${date}.bak`),
+  );
+
+  console.info(`${icon} Imported ${keysDirRel}/${key.addr}.wif`);
+  console.info(``);
 }
 
 /**
@@ -797,10 +828,11 @@ async function safeSave(filepath, wif, bakpath) {
 }
 
 /**
- * @param {Null} psuedoState
+ * @param {Object} opts
+ * @param {Boolean} [opts._rotatePassphrase]
  * @param {Array<String>} args
  */
-cmds.getPassphrase = async function (psuedoState, args) {
+cmds.getPassphrase = async function ({ _rotatePassphrase }, args) {
   // Three possible states:
   //   1. no shadow file yet (ask to set one)
   //   2. empty shadow file (initialized, but not set - don't ask to set one)
@@ -851,7 +883,11 @@ cmds.getPassphrase = async function (psuedoState, args) {
 
   // State 3: passphrase & shadow already in use
   for (;;) {
-    let passphrase = await Prompt.prompt("Enter (current) passphrase: ", {
+    let prompt = `Enter passphrase: `;
+    if (_rotatePassphrase) {
+      prompt = `Enter (current) passphrase: `;
+    }
+    let passphrase = await Prompt.prompt(prompt, {
       mask: true,
     });
     passphrase = passphrase.trim();
@@ -991,7 +1027,7 @@ async function maybeReadKeyFileRaw(filepath, opts) {
 async function decrypt(encWif) {
   let passphrase = cmds._getPassphrase();
   if (!passphrase) {
-    passphrase = await cmds.getPassphrase(null, []);
+    passphrase = await cmds.getPassphrase({}, []);
   }
   let key128 = await Cipher.deriveKey(passphrase);
   let cipher = Cipher.create(key128);
@@ -1005,7 +1041,7 @@ async function decrypt(encWif) {
 async function maybeEncrypt(plainWif) {
   let passphrase = cmds._getPassphrase();
   if (!passphrase) {
-    passphrase = await cmds.getPassphrase(null, []);
+    passphrase = await cmds.getPassphrase({}, []);
   }
   if (!passphrase) {
     return plainWif;
