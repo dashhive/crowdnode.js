@@ -23,9 +23,13 @@ let Ws = require("../lib/ws.js");
 
 let Dashcore = require("@dashevo/dashcore-lib");
 
+const DONE = "✅";
+const TODO = "ℹ️";
 const NO_SHADOW = "NONE";
 const DUFFS = 100000000;
-let qrWidth = 2 + 67 + 2;
+
+let shownDefault = false;
+let qrWidth = 2 + 33 + 2;
 // Sign Up Fees:
 //   0.00236608 // required for signup
 //   0.00002000 // TX fee estimate
@@ -53,6 +57,11 @@ function showVersion() {
 function showHelp() {
   showVersion();
 
+  console.info("Quick Start:");
+  // technically this also has [--no-reserve]
+  console.info("    crowdnode stake [addr-or-import-key | --create-new]");
+
+  console.info("");
   console.info("Usage:");
   console.info("    crowdnode help");
   console.info("    crowdnode status [keyfile-or-addr]");
@@ -75,6 +84,7 @@ function showHelp() {
   console.info("");
 
   console.info("Key Management & Encryption:");
+  console.info("    crowdnode init");
   console.info("    crowdnode generate [--plain-text] [./privkey.wif]");
   console.info("    crowdnode encrypt"); // TODO allow encrypting one-by-one?
   console.info("    crowdnode list");
@@ -119,6 +129,7 @@ async function main() {
   let args = process.argv.slice(2);
 
   // flags
+  let forceGenerate = removeItem(args, "--create-new");
   let forceConfirm = removeItem(args, "--unconfirmed");
   let plainText = removeItem(args, "--plain-text");
   let noReserve = removeItem(args, "--no-reserve");
@@ -154,30 +165,57 @@ async function main() {
   let insightApi = Insight.create({ baseUrl: insightBaseUrl });
   let dashApi = Dash.create({ insightApi: insightApi });
 
+  if ("stake" === subcommand) {
+    await stakeDash(
+      {
+        dashApi,
+        insightApi,
+        insightBaseUrl,
+        defaultAddr,
+        forceGenerate,
+        noReserve,
+      },
+      args,
+    );
+    process.exit(0);
+    return;
+  }
+
   if ("list" === subcommand) {
     await listKeys({ dashApi }, args);
+    process.exit(0);
+    return;
+  }
+
+  if ("init" === subcommand) {
+    await initKeystore({ defaultAddr });
+    process.exit(0);
     return;
   }
 
   if ("generate" === subcommand) {
     await generateKey({ defaultKey: defaultAddr, plainText }, args);
+    process.exit(0);
     return;
   }
 
   if ("passphrase" === subcommand) {
     await setPassphrase({}, args);
+    process.exit(0);
     return;
   }
 
   if ("import" === subcommand) {
-    importKey(null, args);
+    await importKey(null, args);
+    process.exit(0);
     return;
   }
 
   if ("encrypt" === subcommand) {
     let addr = args.shift() || "";
     if (!addr) {
-      encryptAll(null);
+      await encryptAll(null);
+      process.exit(0);
       return;
     }
 
@@ -191,7 +229,8 @@ async function main() {
     if (!key) {
       throw new Error("impossible error");
     }
-    encryptAll([key]);
+    await encryptAll([key]);
+    process.exit(0);
     return;
   }
 
@@ -202,6 +241,7 @@ async function main() {
       await Fs.writeFile(shadowPath, NO_SHADOW, "utf8").catch(
         emptyStringOnErrEnoent,
       );
+      process.exit(0);
       return;
     }
     let keypath = await findWif(addr);
@@ -214,13 +254,15 @@ async function main() {
     if (!key) {
       throw new Error("impossible error");
     }
-    decryptAll([key]);
+    await decryptAll([key]);
+    process.exit(0);
     return;
   }
 
   // use or select or default... ?
   if ("use" === subcommand) {
     await setDefault(null, args);
+    process.exit(0);
     return;
   }
 
@@ -230,6 +272,7 @@ async function main() {
       { dashApi, defaultAddr, forceConfirm, insightBaseUrl, insightApi },
       args,
     );
+    process.exit(0);
     return;
   }
 
@@ -263,11 +306,13 @@ async function main() {
     } else {
       console.info(JSON.stringify(result, null, 2));
     }
+    process.exit(0);
     return;
   }
 
   if ("load" === subcommand) {
     await loadAddr({ defaultAddr, insightBaseUrl }, args);
+    process.exit(0);
     return;
   }
 
@@ -275,6 +320,7 @@ async function main() {
   if ("rm" === subcommand || "delete" === subcommand) {
     await initCrowdNode(insightBaseUrl);
     await removeKey({ defaultAddr, dashApi, insightBaseUrl }, args);
+    process.exit(0);
     return;
   }
 
@@ -286,16 +332,19 @@ async function main() {
 
   if ("status" === subcommand) {
     await getStatus({ dashApi, defaultAddr, insightBaseUrl }, args);
+    process.exit(0);
     return;
   }
 
   if ("signup" === subcommand) {
     await sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args);
+    process.exit(0);
     return;
   }
 
   if ("accept" === subcommand) {
     await acceptTerms({ dashApi, defaultAddr, insightBaseUrl }, args);
+    process.exit(0);
     return;
   }
 
@@ -304,11 +353,13 @@ async function main() {
       { dashApi, defaultAddr, insightBaseUrl, noReserve },
       args,
     );
+    process.exit(0);
     return;
   }
 
   if ("withdrawal" === subcommand) {
     await withdrawalDash({ dashApi, defaultAddr, insightBaseUrl }, args);
+    process.exit(0);
     return;
   }
 
@@ -319,9 +370,118 @@ async function main() {
 }
 
 /**
+ * @param {Object} opts
+ * @param {any} opts.dashApi - TODO
+ * @param {String} opts.defaultAddr
+ * @param {Boolean} opts.forceGenerate
+ * @param {String} opts.insightBaseUrl
+ * @param {any} opts.insightApi
+ * @param {Boolean} opts.noReserve
+ * @param {Array<String>} args
+ */
+async function stakeDash(
+  {
+    dashApi,
+    defaultAddr,
+    forceGenerate,
+    insightApi,
+    insightBaseUrl,
+    noReserve,
+  },
+  args,
+) {
+  let err = await Fs.access(args[0]).catch(Object);
+  let addr;
+  if (!err) {
+    addr = await importKey(null, [args[0]]);
+  } else if (forceGenerate) {
+    addr = await generateKey({ defaultKey: defaultAddr }, []);
+  } else {
+    addr = await initKeystore({ defaultAddr });
+  }
+
+  if (!addr) {
+    let [_addr] = await mustGetAddr({ defaultAddr }, args);
+    addr = _addr;
+  }
+
+  let extra = feeEstimate;
+  console.info("Checking CrowdNode account... ");
+  await CrowdNode.init({
+    baseUrl: "https://app.crowdnode.io",
+    insightBaseUrl,
+  });
+  let hotwallet = CrowdNode.main.hotwallet;
+  let state = await getCrowdNodeStatus({ addr, hotwallet });
+
+  if (!state.status?.accept) {
+    if (!state.status?.signup) {
+      let signUpDeposit = signupOnly + feeEstimate;
+      console.info(
+        `    ${TODO} SignUpForApi deposit is ${signupOnly} (+ tx fee)`,
+      );
+      extra += signUpDeposit;
+    } else {
+      console.info(`    ${DONE} SignUpForApi complete`);
+    }
+    let acceptDeposit = acceptOnly + feeEstimate;
+    console.info(`    ${TODO} AcceptTerms deposit is ${acceptOnly} (+ tx fee)`);
+    extra += acceptDeposit;
+  }
+
+  let desiredAmountDash = args.shift() || "0.5";
+  let effectiveDuff = toDuff(desiredAmountDash);
+  effectiveDuff += extra;
+
+  let balanceInfo = await dashApi.getInstantBalance(addr);
+  effectiveDuff -= balanceInfo.balanceSat;
+
+  if (effectiveDuff > 0) {
+    effectiveDuff = roundDuff(effectiveDuff, 3);
+    let effectiveDash = toDash(effectiveDuff);
+    await plainLoadAddr({
+      addr,
+      effectiveDash,
+      effectiveDuff,
+      insightBaseUrl,
+    });
+  }
+
+  if (!state.status?.accept) {
+    if (!state.status?.signup) {
+      await sendSignup({ dashApi, defaultAddr: addr, insightBaseUrl }, []);
+    }
+    await acceptTerms({ dashApi, defaultAddr: addr, insightBaseUrl }, []);
+  }
+
+  await depositDash(
+    { dashApi, defaultAddr: addr, insightBaseUrl, noReserve },
+    args,
+  );
+}
+
+/**
+ * @param {Object} opts
+ * @param {String} opts.defaultAddr
+ */
+async function initKeystore({ defaultAddr }) {
+  // if we have no keys, make one
+  let wifnames = await listManagedKeynames();
+  if (!wifnames.length) {
+    return await generateKey({ defaultKey: defaultAddr }, []);
+  }
+  // if we have no passphrase, ask about it
+  await initPassphrase();
+  return defaultAddr || wifnames[0];
+}
+
+/**
  * @param {String} insightBaseUrl
  */
 async function initCrowdNode(insightBaseUrl) {
+  if (CrowdNode.main.hotwallet) {
+    return;
+  }
   process.stdout.write("Checking CrowdNode API... ");
   await CrowdNode.init({
     baseUrl: "https://app.crowdnode.io",
@@ -342,7 +502,7 @@ function showQr(addr, duffs = 0) {
   }
 
   let dashQr = Qr.ascii(dashUri, { indent: 4, size: "mini" });
-  let addrPad = Math.ceil((qrWidth - dashUri.length) / 2);
+  let addrPad = Math.max(0, Math.ceil((qrWidth - dashUri.length) / 2));
 
   console.info(dashQr);
   console.info();
@@ -368,9 +528,9 @@ function removeItem(arr, item) {
  */
 async function getCrowdNodeStatus({ addr, hotwallet }) {
   let state = {
-    signup: "❌",
-    accept: "❌",
-    deposit: "❌",
+    signup: TODO,
+    accept: TODO,
+    deposit: TODO,
     status: {
       signup: 0,
       accept: 0,
@@ -379,15 +539,18 @@ async function getCrowdNodeStatus({ addr, hotwallet }) {
   };
 
   //@ts-ignore - TODO why warnings?
-  state.status = await CrowdNode.status(addr, hotwallet);
+  let status = await CrowdNode.status(addr, hotwallet);
+  if (status) {
+    state.status = status;
+  }
   if (state.status?.signup) {
-    state.signup = "✅";
+    state.signup = DONE;
   }
   if (state.status?.accept) {
-    state.accept = "✅";
+    state.accept = DONE;
   }
   if (state.status?.deposit) {
-    state.deposit = "✅";
+    state.deposit = DONE;
   }
   return state;
 }
@@ -399,10 +562,26 @@ async function getCrowdNodeStatus({ addr, hotwallet }) {
  */
 async function checkBalance({ addr, dashApi }) {
   // deposit if balance is over 100,000 (0.00100000)
-  process.stdout.write("Checking balance... ");
+  console.info("Checking balance... ");
   let balanceInfo = await dashApi.getInstantBalance(addr);
-  let balanceDash = toDash(balanceInfo.balanceSat);
-  console.info(`${balanceInfo.balanceSat} (Đ${balanceDash})`);
+  let balanceDASH = toDASH(balanceInfo.balanceSat);
+
+  let crowdNodeBalance = await CrowdNode.http.GetBalance(addr);
+  if (!crowdNodeBalance.TotalBalance) {
+    crowdNodeBalance.TotalBalance = 0;
+    crowdNodeBalance.TotalDividend = 0;
+  }
+
+  let crowdNodeDuffNum = toDuff(crowdNodeBalance.TotalBalance);
+  let crowdNodeDASH = toDASH(crowdNodeDuffNum);
+
+  let crowdNodeDivNum = toDuff(crowdNodeBalance.TotalDividend);
+  let crowdNodeDASHDiv = toDASH(crowdNodeDivNum);
+
+  console.info(`Key:       ${balanceDASH}`);
+  console.info(`CrowdNode: ${crowdNodeDASH}`);
+  console.info(`Dividends: ${crowdNodeDASHDiv}`);
+  console.info();
   /*
   let balanceInfo = await insightApi.getBalance(pub);
   if (balanceInfo.unconfirmedBalanceSat || balanceInfo.unconfirmedAppearances) {
@@ -541,8 +720,9 @@ async function mustGetDefaultWif(defaultAddr, opts) {
     // misnomering wif here a bit
     defaultWif = raw?.wif || raw?.addr || "";
   }
-  if (defaultWif) {
-    console.info(`selected default staking key ${defaultAddr}`);
+  if (defaultWif && !shownDefault) {
+    shownDefault = true;
+    console.info(`Selected default staking key ${defaultAddr}`);
     return defaultWif;
   }
 
@@ -565,7 +745,7 @@ async function mustGetDefaultWif(defaultAddr, opts) {
 /**
  * @param {Object} psuedoState
  * @param {String} psuedoState.defaultKey - addr name of default key
- * @param {Boolean} psuedoState.plainText - don't encrypt
+ * @param {Boolean} [psuedoState.plainText] - don't encrypt
  * @param {Array<String>} args
  */
 async function generateKey({ defaultKey, plainText }, args) {
@@ -590,6 +770,7 @@ async function generateKey({ defaultKey, plainText }, args) {
     note = `\n(for pubkey address ${addr})`;
     let err = await Fs.access(filepath).catch(Object);
     if (!err) {
+      // TODO
       console.info(`'${filepath}' already exists (will not overwrite)`);
       process.exit(0);
       return;
@@ -604,8 +785,20 @@ async function generateKey({ defaultKey, plainText }, args) {
   console.info(``);
   console.info(`Generated ${filename} ${note}`);
   console.info(``);
-  process.exit(0);
-  return;
+  return addr;
+}
+
+async function initPassphrase() {
+  let needsInit = false;
+  let shadow = await Fs.readFile(shadowPath, "utf8").catch(
+    emptyStringOnErrEnoent,
+  );
+  if (!shadow) {
+    needsInit = true;
+  }
+  if (needsInit) {
+    await cmds.getPassphrase({}, []);
+  }
 }
 
 /**
@@ -716,110 +909,8 @@ async function importKey(_, args) {
 
   console.info(`${icon} Imported ${keysDirRel}/${key.addr}.wif`);
   console.info(``);
-}
 
-/**
- * Encrypt ALL-the-things!
- * @param {Object} [opts]
- * @param {Boolean} opts.rotateKey
- * @param {Array<RawKey>?} rawKeys
- */
-async function encryptAll(rawKeys, opts) {
-  if (!rawKeys) {
-    rawKeys = await readAllKeys();
-  }
-  let date = getFsDateString();
-
-  let passphrase = cmds._getPassphrase();
-  if (!passphrase) {
-    let result = await cmds.getPassphrase({ _force: true }, []);
-    if (result.changed) {
-      // encryptAll was already called on rotation
-      return;
-    }
-    passphrase = result.passphrase;
-  }
-
-  console.info(`Encrypting...`);
-  console.info(``);
-  await rawKeys.reduce(async function (promise, key) {
-    await promise;
-
-    if (key.encrypted && !opts?.rotateKey) {
-      console.info(`🙈 ${key.addr} [already encrypted]`);
-      return;
-    }
-    let encWif = await maybeEncrypt(key.wif, { force: true });
-    await safeSave(
-      Path.join(keysDir, `${key.addr}.wif`),
-      encWif,
-      Path.join(keysDir, `${key.addr}.${date}.bak`),
-    );
-    console.info(`🔑 ${key.addr}`);
-  }, Promise.resolve());
-  console.info(``);
-  console.info(`Done 🔐`);
-  console.info(``);
-}
-
-/**
- * Decrypt ALL-the-things!
- * @param {Array<RawKey>?} rawKeys
- */
-async function decryptAll(rawKeys) {
-  if (!rawKeys) {
-    rawKeys = await readAllKeys();
-  }
-  let date = getFsDateString();
-
-  console.info(``);
-  console.info(`Decrypting...`);
-  console.info(``);
-  await rawKeys.reduce(async function (promise, key) {
-    await promise;
-
-    if (!key.encrypted) {
-      console.info(`📖 ${key.addr} [already decrypted]`);
-      return;
-    }
-    await safeSave(
-      Path.join(keysDir, `${key.addr}.wif`),
-      key.wif,
-      Path.join(keysDir, `${key.addr}.${date}.bak`),
-    );
-    console.info(`🔓 ${key.addr}`);
-  }, Promise.resolve());
-  console.info(``);
-  console.info(`Done ✅`);
-  console.info(``);
-}
-
-function getFsDateString() {
-  // YYYY-MM-DD_hh-mm_ss
-  let date = new Date()
-    .toISOString()
-    .replace(/:/g, ".")
-    .replace(/T/, "_")
-    .replace(/\.\d{3}.*/, "");
-  return date;
-}
-
-/**
- * @param {String} filepath
- * @param {String} wif
- * @param {String} bakpath
- */
-async function safeSave(filepath, wif, bakpath) {
-  let tmpPath = `${bakpath}.tmp`;
-  await Fs.writeFile(tmpPath, wif, "utf8");
-  let err = await Fs.access(filepath).catch(Object);
-  if (!err) {
-    await Fs.rename(filepath, bakpath);
-  }
-  await Fs.rename(tmpPath, filepath);
-  if (!err) {
-    await Fs.unlink(bakpath);
-  }
+  return key.addr;
 }
 
 /**
@@ -933,6 +1024,110 @@ cmds._setPassphrase = function (passphrase) {
     return passphrase;
   };
 };
+
+/**
+ * Encrypt ALL-the-things!
+ * @param {Object} [opts]
+ * @param {Boolean} opts.rotateKey
+ * @param {Array<RawKey>?} rawKeys
+ */
+async function encryptAll(rawKeys, opts) {
+  if (!rawKeys) {
+    rawKeys = await readAllKeys();
+  }
+  let date = getFsDateString();
+
+  let passphrase = cmds._getPassphrase();
+  if (!passphrase) {
+    let result = await cmds.getPassphrase({ _force: true }, []);
+    if (result.changed) {
+      // encryptAll was already called on rotation
+      return;
+    }
+    passphrase = result.passphrase;
+  }
+
+  console.info(`Encrypting...`);
+  console.info(``);
+  await rawKeys.reduce(async function (promise, key) {
+    await promise;
+
+    if (key.encrypted && !opts?.rotateKey) {
+      console.info(`🙈 ${key.addr} [already encrypted]`);
+      return;
+    }
+    let encWif = await maybeEncrypt(key.wif, { force: true });
+    await safeSave(
+      Path.join(keysDir, `${key.addr}.wif`),
+      encWif,
+      Path.join(keysDir, `${key.addr}.${date}.bak`),
+    );
+    console.info(`🔑 ${key.addr}`);
+  }, Promise.resolve());
+  console.info(``);
+  console.info(`Done 🔐`);
+  console.info(``);
+}
+
+/**
+ * Decrypt ALL-the-things!
+ * @param {Array<RawKey>?} rawKeys
+ */
+async function decryptAll(rawKeys) {
+  if (!rawKeys) {
+    rawKeys = await readAllKeys();
+  }
+  let date = getFsDateString();
+
+  console.info(``);
+  console.info(`Decrypting...`);
+  console.info(``);
+  await rawKeys.reduce(async function (promise, key) {
+    await promise;
+
+    if (!key.encrypted) {
+      console.info(`📖 ${key.addr} [already decrypted]`);
+      return;
+    }
+    await safeSave(
+      Path.join(keysDir, `${key.addr}.wif`),
+      key.wif,
+      Path.join(keysDir, `${key.addr}.${date}.bak`),
+    );
+    console.info(`🔓 ${key.addr}`);
+  }, Promise.resolve());
+  console.info(``);
+  console.info(`Done ${DONE}`);
+  console.info(``);
+}
+
+function getFsDateString() {
+  // YYYY-MM-DD_hh-mm_ss
+  let date = new Date()
+    .toISOString()
+    .replace(/:/g, ".")
+    .replace(/T/, "_")
+    .replace(/\.\d{3}.*/, "");
+  return date;
+}
+
+/**
+ * @param {String} filepath
+ * @param {String} wif
+ * @param {String} bakpath
+ */
+async function safeSave(filepath, wif, bakpath) {
+  let tmpPath = `${bakpath}.tmp`;
+  await Fs.writeFile(tmpPath, wif, "utf8");
+  let err = await Fs.access(filepath).catch(Object);
+  if (!err) {
+    await Fs.rename(filepath, bakpath);
+  }
+  await Fs.rename(tmpPath, filepath);
+  if (!err) {
+    await Fs.unlink(bakpath);
+  }
+}
 
 /**
  * @typedef {Object} RawKey
@@ -1110,6 +1305,8 @@ async function listKeys({ dashApi }, args) {
    */
   let warns = [];
   console.info(``);
+  console.info(`🔑Holdings 🪧 Stakings 💸Earnings`);
+  console.info(``);
   console.info(`Staking keys: (in ${keysDirRel}/)`);
   console.info(``);
   if (!wifnames.length) {
@@ -1144,10 +1341,26 @@ async function listKeys({ dashApi }, args) {
     }
     */
 
-    process.stdout.write(`  🪙  ${addr}: `);
+    process.stdout.write(`${addr}: `);
+
     let balanceInfo = await dashApi.getInstantBalance(addr);
-    let balanceDash = toDash(balanceInfo.balanceSat);
-    console.info(`${balanceInfo.balanceSat} (Đ${balanceDash})`);
+    let balanceDASH = toDASH(balanceInfo.balanceSat);
+
+    let crowdNodeBalance = await CrowdNode.http.GetBalance(addr);
+    if (!crowdNodeBalance.TotalBalance) {
+      crowdNodeBalance.TotalBalance = 0;
+      crowdNodeBalance.TotalDividend = 0;
+    }
+    let crowdNodeDuffNum = toDuff(crowdNodeBalance.TotalBalance);
+    let crowdNodeDASH = toDASH(crowdNodeDuffNum);
+
+    let crowdNodeDivNum = toDuff(crowdNodeBalance.TotalDividend);
+    let crowdNodeDivDASH = toDASH(crowdNodeDivNum);
+    process.stdout.write(
+      `${balanceDASH}🔑 ${crowdNodeDASH}🪧 ${crowdNodeDivDASH}💸`,
+    );
+
+    console.info();
   }, Promise.resolve());
   console.info(``);
 
@@ -1202,7 +1415,6 @@ async function removeKey({ dashApi, defaultAddr, insightBaseUrl }, args) {
     crowdNodeBalance = {};
   }
   if (!crowdNodeBalance.TotalBalance) {
-    //console.log('DEBUG', crowdNodeBalance);
     crowdNodeBalance.TotalBalance = 0;
   }
   let crowdNodeDash = toDash(crowdNodeBalance.TotalBalance);
@@ -1290,19 +1502,48 @@ async function loadAddr({ defaultAddr, insightBaseUrl }, args) {
 
   let desiredAmountDash = parseFloat(args.shift() || "0");
   let desiredAmountDuff = Math.round(desiredAmountDash * DUFFS);
+
   let effectiveDuff = desiredAmountDuff;
   let effectiveDash = "";
   if (!effectiveDuff) {
     effectiveDuff = CrowdNode.stakeMinimum + signupTotal + feeEstimate;
-    effectiveDash = toDash(effectiveDuff);
-    // Round to the nearest mDash
-    // ex: 0.50238108 => 0.50300000
-    effectiveDuff = toDuff(
-      (Math.ceil(parseFloat(effectiveDash) * 1000) / 1000).toString(),
-    );
+    effectiveDuff = roundDuff(effectiveDuff, 3);
     effectiveDash = toDash(effectiveDuff);
   }
 
+  await plainLoadAddr({ addr, effectiveDash, effectiveDuff, insightBaseUrl });
+
+  return;
+}
+
+/**
+ * 1000 to Round to the nearest mDash
+ * ex: 0.50238108 => 0.50300000
+ * @param {Number} effectiveDuff
+ * @param {Number} numDigits
+ */
+function roundDuff(effectiveDuff, numDigits) {
+  let n = Math.pow(10, numDigits);
+  let effectiveDash = toDash(effectiveDuff);
+  effectiveDuff = toDuff(
+    (Math.ceil(parseFloat(effectiveDash) * n) / n).toString(),
+  );
+  return effectiveDuff;
+}
+
+/**
+ * @param {Object} opts
+ * @param {String} opts.addr
+ * @param {String} opts.effectiveDash
+ * @param {Number} opts.effectiveDuff
+ * @param {String} opts.insightBaseUrl
+ */
+async function plainLoadAddr({
+  addr,
+  effectiveDash,
+  effectiveDuff,
+  insightBaseUrl,
+}) {
   console.info(``);
   showQr(addr, effectiveDuff);
   console.info(``);
@@ -1314,7 +1555,6 @@ async function loadAddr({ defaultAddr, insightBaseUrl }, args) {
   console.info(``);
   let payment = await Ws.waitForVout(insightBaseUrl, addr, 0);
   console.info(`Received ${payment.satoshis}`);
-  process.exit(0);
 }
 
 /**
@@ -1325,9 +1565,9 @@ async function loadAddr({ defaultAddr, insightBaseUrl }, args) {
  */
 async function getBalance({ dashApi, defaultAddr }, args) {
   let [addr] = await mustGetAddr({ defaultAddr }, args);
-  let balanceInfo = await checkBalance({ addr, dashApi });
-  console.info(balanceInfo);
-  process.exit(0);
+  await checkBalance({ addr, dashApi });
+  //let balanceInfo = await checkBalance({ addr, dashApi });
+  //console.info(balanceInfo);
   return;
 }
 
@@ -1378,7 +1618,6 @@ async function transferBalance(
   }, 30 * 1000);
   await Ws.waitForVout(insightBaseUrl, newAddr, 0);
   console.info(`Accepted!`);
-  process.exit(0);
   return;
 }
 
@@ -1412,12 +1651,11 @@ async function getStatus({ dashApi, defaultAddr, insightBaseUrl }, args) {
   if (!crowdNodeBalance.TotalBalance) {
     crowdNodeBalance.TotalBalance = 0;
   }
-  let crowdNodeDash = toDash(crowdNodeBalance.TotalBalance);
+  let crowdNodeDuff = toDuff(crowdNodeBalance.TotalBalance);
   console.info(
-    `CrowdNode Stake: ${crowdNodeBalance.TotalBalance} (Đ${crowdNodeDash})`,
+    `CrowdNode Stake: ${crowdNodeDuff} (Đ${crowdNodeBalance.TotalBalance})`,
   );
   console.info();
-  process.exit(0);
   return;
 }
 
@@ -1440,7 +1678,6 @@ async function sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args) {
     console.info(`    ${state.signup} SignUpForApi`);
     console.info(`    ${state.accept} AcceptTerms`);
     console.info(`    ${state.deposit} DepositReceived`);
-    process.exit(0);
     return;
   }
 
@@ -1453,10 +1690,8 @@ async function sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args) {
 
   console.info("Requesting account...");
   await CrowdNode.signup(wif, hotwallet);
-  state.signup = "✅";
+  state.signup = DONE;
   console.info(`    ${state.signup} SignUpForApi`);
-  console.info(`    ${state.accept} AcceptTerms`);
-  process.exit(0);
   return;
 }
 
@@ -1488,7 +1723,6 @@ async function acceptTerms({ dashApi, defaultAddr, insightBaseUrl }, args) {
     console.info(`    ${state.signup} SignUpForApi`);
     console.info(`    ${state.accept} AcceptTerms`);
     console.info(`    ${state.deposit} DepositReceived`);
-    process.exit(0);
     return;
   }
   let hasEnough = balanceInfo.balanceSat > acceptOnly + feeEstimate;
@@ -1500,11 +1734,8 @@ async function acceptTerms({ dashApi, defaultAddr, insightBaseUrl }, args) {
 
   console.info("Accepting terms...");
   await CrowdNode.accept(wif, hotwallet);
-  state.accept = "✅";
-  console.info(`    ${state.signup} SignUpForApi`);
+  state.accept = DONE;
   console.info(`    ${state.accept} AcceptTerms`);
-  console.info(`    ${state.deposit} DepositReceived`);
-  process.exit(0);
   return;
 }
 
@@ -1583,9 +1814,8 @@ async function depositDash(
   let wif = await maybeReadKeyPaths(name, { wif: true });
 
   await CrowdNode.deposit(wif, hotwallet, effectiveAmount);
-  state.deposit = "✅";
+  state.deposit = DONE;
   console.info(`    ${state.deposit} DepositReceived`);
-  process.exit(0);
   return;
 }
 
@@ -1633,7 +1863,6 @@ async function withdrawalDash({ dashApi, defaultAddr, insightBaseUrl }, args) {
   //let paidFloat = (paid.satoshis / DUFFS).toFixed(8);
   //let paidInt = paid.satoshis.toString().padStart(9, "0");
   console.info(`API Response: ${paid.api}`);
-  process.exit(0);
   return;
 }
 
@@ -1740,6 +1969,14 @@ function emptyStringOnErrEnoent(err) {
  */
 function toDash(duffs) {
   return (duffs / DUFFS).toFixed(8);
+}
+
+/**
+ * @param {Number} duffs - ex: 00000000
+ */
+function toDASH(duffs) {
+  let dash = (duffs / DUFFS).toFixed(8);
+  return `Đ${dash}`.padStart(13, " ");
 }
 
 /**
