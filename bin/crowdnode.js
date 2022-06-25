@@ -331,9 +331,10 @@ async function initCrowdNode(insightBaseUrl) {
  * @param {Number} duffs - 1/100000000 of a DASH
  */
 function showQr(addr, duffs = 0) {
+  let dashAmount = toDash(duffs);
   let dashUri = `dash://${addr}`;
   if (duffs) {
-    dashUri += `?amount=${duffs}`;
+    dashUri += `?amount=${dashAmount}`;
   }
 
   let dashQr = Qr.ascii(dashUri, { indent: 4 });
