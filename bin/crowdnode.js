@@ -197,7 +197,8 @@ async function main() {
   if ("decrypt" === subcommand) {
     let addr = args.shift() || "";
     if (!addr) {
-      decryptAll(null);
+      await decryptAll(null);
+      await Fs.writeFile(shadowPath, "", "utf8").catch(emptyStringOnErrEnoent);
       return;
     }
     let keypath = await findWif(addr);
@@ -610,6 +611,10 @@ async function generateKey({ defaultKey, plainText }, args) {
  * @param {Array<String>} args
  */
 async function setPassphrase({ _askPreviousPassphrase }, args) {
+  let result = {
+    passphrase: "",
+    changed: false,
+  };
   let date = getFsDateString();
 
   // get the old passphrase
@@ -618,25 +623,7 @@ async function setPassphrase({ _askPreviousPassphrase }, args) {
   }
 
   // get the new passphrase
-  let newPassphrase;
-  for (;;) {
-    newPassphrase = await Prompt.prompt("Enter (new) passphrase: ", {
-      mask: true,
-    });
-    newPassphrase = newPassphrase.trim();
-
-    let _newPassphrase = await Prompt.prompt("Enter passphrase again: ", {
-      mask: true,
-    });
-    _newPassphrase = _newPassphrase.trim();
-
-    let match = Cipher.secureCompare(newPassphrase, _newPassphrase);
-    if (match) {
-      break;
-    }
-
-    console.error("passphrases do not match");
-  }
+  let newPassphrase = await promptPassphrase();
   let curShadow = await Fs.readFile(shadowPath, "utf8").catch(
     emptyStringOnErrEnoent,
   );
@@ -668,38 +655,32 @@ async function setPassphrase({ _askPreviousPassphrase }, args) {
 
   await encryptAll(rawKeys, { rotateKey: true });
 
-  return newPassphrase;
+  result.passphrase = newPassphrase;
+  result.changed = true;
+  return result;
 }
 
-/**
- * Import and Encrypt
- * @param {Null} _
- * @param {Array<String>} args
- */
-async function importKey(_, args) {
-  let keypath = args.shift() || "";
-  let key = await maybeReadKeyFileRaw(keypath);
-  if (!key?.wif) {
-    console.error(`no key found for '${keypath}'`);
-    process.exit(1);
-    return;
+async function promptPassphrase() {
+  let newPassphrase;
+  for (;;) {
+    newPassphrase = await Prompt.prompt("Enter (new) passphrase: ", {
+      mask: true,
+    });
+    newPassphrase = newPassphrase.trim();
+
+    let _newPassphrase = await Prompt.prompt("Enter passphrase again: ", {
+      mask: true,
+    });
+    _newPassphrase = _newPassphrase.trim();
+
+    let match = Cipher.secureCompare(newPassphrase, _newPassphrase);
+    if (match) {
+      break;
+    }
+
+    console.error("passphrases do not match");
   }
-
-  let encWif = await maybeEncrypt(key.wif);
-  let icon = "💾";
-  if (encWif.includes(":")) {
-    icon = "🔐";
-  }
-  let date = getFsDateString();
-
-  await safeSave(
-    Path.join(keysDir, `${key.addr}.wif`),
-    encWif,
-    Path.join(keysDir, `${key.addr}.${date}.bak`),
-  );
-
-  console.info(`${icon} Imported ${keysDirRel}/${key.addr}.wif`);
-  console.info(``);
+  return newPassphrase;
 }
 
 /**
@@ -745,6 +726,16 @@ async function encryptAll(rawKeys, opts) {
   }
   let date = getFsDateString();
 
+  let passphrase = cmds._getPassphrase();
+  if (!passphrase) {
+    let result = await cmds.getPassphrase({ _force: true }, []);
+    if (result.changed) {
+      // encryptAll was already called on rotation
+      return;
+    }
+    passphrase = result.passphrase;
+  }
+
   console.info(`Encrypting...`);
   console.info(``);
   await rawKeys.reduce(async function (promise, key) {
@@ -754,7 +745,7 @@ async function encryptAll(rawKeys, opts) {
       console.info(`🙈 ${key.addr} [already encrypted]`);
       return;
     }
-    let encWif = await maybeEncrypt(key.wif);
+    let encWif = await maybeEncrypt(key.wif, { force: true });
     await safeSave(
       Path.join(keysDir, `${key.addr}.wif`),
       encWif,
@@ -830,9 +821,23 @@ async function safeSave(filepath, wif, bakpath) {
 /**
  * @param {Object} opts
  * @param {Boolean} [opts._rotatePassphrase]
+ * @param {Boolean} [opts._force]
  * @param {Array<String>} args
  */
-cmds.getPassphrase = async function ({ _rotatePassphrase }, args) {
+cmds.getPassphrase = async function ({ _rotatePassphrase, _force }, args) {
+  let result = {
+    passphrase: "",
+    changed: false,
+  };
+  /*
+  if (!_rotatePassphrase) {
+    let cachedphrase = cmds._getPassphrase();
+    if (cachedphrase) {
+      return cachedphrase;
+    }
+  }
+  */
+
   // Three possible states:
   //   1. no shadow file yet (ask to set one)
   //   2. empty shadow file (initialized, but not set - don't ask to set one)
@@ -845,22 +850,25 @@ cmds.getPassphrase = async function ({ _rotatePassphrase }, args) {
     }
     throw err;
   });
+  if (!shadow && _force) {
+    needsInit = true;
+  }
 
   // State 1: not initialized, what does the user want?
   if (needsInit) {
     for (;;) {
-      let no = await Prompt.prompt(
-        "Would you like to set an encryption passphrase? [Y/n]: ",
-      );
+      let no;
+      if (!_force) {
+        no = await Prompt.prompt(
+          "Would you like to set an encryption passphrase? [Y/n]: ",
+        );
+      }
 
       // Set a passphrase and create shadow file
       if (!no || ["yes", "y"].includes(no.toLowerCase())) {
-        let passphrase = await setPassphrase(
-          { _askPreviousPassphrase: false },
-          args,
-        );
-        cmds._setPassphrase(passphrase);
-        return passphrase;
+        result = await setPassphrase({ _askPreviousPassphrase: false }, args);
+        cmds._setPassphrase(result.passphrase);
+        return result;
       }
 
       // ask user again
@@ -870,7 +878,7 @@ cmds.getPassphrase = async function ({ _rotatePassphrase }, args) {
 
       // No passphrase, create empty shadow file
       await Fs.writeFile(shadowPath, "", "utf8");
-      return "";
+      return result;
     }
   }
 
@@ -878,7 +886,7 @@ cmds.getPassphrase = async function ({ _rotatePassphrase }, args) {
   // (user doesn't want a passphrase)
   if (!shadow) {
     cmds._setPassphrase("");
-    return "";
+    return result;
   }
 
   // State 3: passphrase & shadow already in use
@@ -887,21 +895,21 @@ cmds.getPassphrase = async function ({ _rotatePassphrase }, args) {
     if (_rotatePassphrase) {
       prompt = `Enter (current) passphrase: `;
     }
-    let passphrase = await Prompt.prompt(prompt, {
+    result.passphrase = await Prompt.prompt(prompt, {
       mask: true,
     });
-    passphrase = passphrase.trim();
-    if (!passphrase || "q" === passphrase) {
+    result.passphrase = result.passphrase.trim();
+    if (!result.passphrase || "q" === result.passphrase) {
       console.error("cancel: no passphrase");
       process.exit(1);
-      return;
+      return result;
     }
 
-    let match = await Cipher.checkPassphrase(passphrase, shadow);
+    let match = await Cipher.checkPassphrase(result.passphrase, shadow);
     if (match) {
-      cmds._setPassphrase(passphrase);
+      cmds._setPassphrase(result.passphrase);
       console.info(``);
-      return passphrase;
+      return result;
     }
 
     console.error("incorrect passphrase");
@@ -1027,7 +1035,10 @@ async function maybeReadKeyFileRaw(filepath, opts) {
 async function decrypt(encWif) {
   let passphrase = cmds._getPassphrase();
   if (!passphrase) {
-    passphrase = await cmds.getPassphrase({}, []);
+    let result = await cmds.getPassphrase({}, []);
+    passphrase = result.passphrase;
+    // we don't return just in case they're setting a passphrase to
+    // decrypt a previously encrypted file (i.e. for recovery from elsewhere)
   }
   let key128 = await Cipher.deriveKey(passphrase);
   let cipher = Cipher.create(key128);
@@ -1035,15 +1046,22 @@ async function decrypt(encWif) {
   return cipher.decrypt(encWif);
 }
 
+// tuple example {Promise<[String, Boolean]>}
 /**
+ * @param {Object} [opts]
+ * @param {Boolean} [opts.force]
  * @param {String} plainWif
  */
-async function maybeEncrypt(plainWif) {
+async function maybeEncrypt(plainWif, opts) {
   let passphrase = cmds._getPassphrase();
   if (!passphrase) {
-    passphrase = await cmds.getPassphrase({}, []);
+    let result = await cmds.getPassphrase({}, []);
+    passphrase = result.passphrase;
   }
   if (!passphrase) {
+    if (opts?.force) {
+      throw new Error(`no passphrase with which to encrypt file`);
+    }
     return plainWif;
   }
 
