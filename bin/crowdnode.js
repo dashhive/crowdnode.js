@@ -452,14 +452,14 @@ async function stakeDash(
 
   if (!state.status?.accept) {
     if (!state.status?.signup) {
-      await sendSignup({ dashApi, defaultAddr: addr, insightBaseUrl }, []);
+      await sendSignup({ dashApi, defaultAddr: addr, insightBaseUrl }, [addr]);
     }
-    await acceptTerms({ dashApi, defaultAddr: addr, insightBaseUrl }, []);
+    await acceptTerms({ dashApi, defaultAddr: addr, insightBaseUrl }, [addr]);
   }
 
   await depositDash(
     { dashApi, defaultAddr: addr, insightBaseUrl, noReserve },
-    args,
+    [addr].concat(args),
   );
 }
 
