@@ -49,6 +49,11 @@ let keysDirRel = `~/${configdir}/keys`;
 let shadowPath = Path.join(HOME, `${configdir}/shadow`);
 let defaultWifPath = Path.join(HOME, `${configdir}/default`);
 
+function debug() {
+  //@ts-ignore
+  console.error.apply(console, arguments);
+}
+
 function showVersion() {
   console.info(`${pkg.name} v${pkg.version} - ${pkg.description}`);
   console.info();
@@ -182,7 +187,7 @@ async function main() {
   }
 
   if ("list" === subcommand) {
-    await listKeys({ dashApi }, args);
+    await listKeys({ dashApi, defaultAddr }, args);
     process.exit(0);
     return;
   }
@@ -327,7 +332,13 @@ async function main() {
   }
 
   if ("balance" === subcommand) {
-    await getBalance({ dashApi, defaultAddr }, args);
+    if (args.length) {
+      await getBalance({ dashApi, defaultAddr }, args);
+      process.exit(0);
+      return;
+    }
+
+    await getAllBalances({ dashApi, defaultAddr }, args);
     process.exit(0);
     return;
   }
@@ -725,7 +736,7 @@ async function mustGetDefaultWif(defaultAddr, opts) {
   }
   if (defaultWif && !shownDefault) {
     shownDefault = true;
-    console.info(`Selected default staking key ${defaultAddr}`);
+    debug(`Selected default staking key ${defaultAddr}`);
     return defaultWif;
   }
 
@@ -1297,20 +1308,89 @@ async function setDefault(_, args) {
 /**
  * @param {Object} opts
  * @param {any} opts.dashApi - TODO
+ * @param {String} opts.defaultAddr
  * @param {Array<String>} args
  */
-async function listKeys({ dashApi }, args) {
+async function listKeys({ dashApi, defaultAddr }, args) {
   let wifnames = await listManagedKeynames();
+
+  if (wifnames) {
+    // to print 'default staking key' message
+    await mustGetAddr({ defaultAddr }, args);
+  }
 
   /**
    * @type Array<{ node: String, error: Error }>
    */
   let warns = [];
-  console.info(``);
-  console.info(`🔑Holdings 🪧 Stakings 💸Earnings`);
-  console.info(``);
-  console.info(`Staking keys: (in ${keysDirRel}/)`);
-  console.info(``);
+  // console.error because console.debug goes to stdout, not stderr
+  debug(``);
+  debug(`Staking keys: (in ${keysDirRel}/)`);
+  debug(``);
+
+  await wifnames.reduce(async function (promise, wifname) {
+    await promise;
+
+    let wifpath = Path.join(keysDir, wifname);
+    let addr = await maybeReadKeyFile(wifpath, { wif: false }).catch(function (
+      err,
+    ) {
+      warns.push({ node: wifname, error: err });
+      return "";
+    });
+    if (!addr) {
+      return;
+    }
+
+    console.info(`${addr}`);
+  }, Promise.resolve());
+  debug(``);
+
+  if (warns.length) {
+    console.warn(`Warnings:`);
+    warns.forEach(function (warn) {
+      console.warn(`${warn.node}: ${warn.error.message}`);
+    });
+    console.warn(``);
+  }
+}
+
+/**
+ * @param {Object} opts
+ * @param {any} opts.dashApi - TODO
+ * @param {String} opts.defaultAddr
+ * @param {Array<String>} args
+ */
+async function getAllBalances({ dashApi, defaultAddr }, args) {
+  let wifnames = await listManagedKeynames();
+  let totals = {
+    key: 0,
+    stake: 0,
+    dividend: 0,
+    keyDash: "",
+    stakeDash: "",
+    dividendDash: "",
+  };
+
+  if (wifnames.length) {
+    // to print 'default staking key' message
+    await mustGetAddr({ defaultAddr }, args);
+  }
+
+  /**
+   * @type Array<{ node: String, error: Error }>
+   */
+  let warns = [];
+  // console.error because console.debug goes to stdout, not stderr
+  debug(``);
+  debug(`Staking keys: (in ${keysDirRel}/)`);
+  debug(``);
+  console.info(
+    `|                                    |   🔑 Holdings |   🪧  Stakings |   💸 Earnings |`,
+  );
+  console.info(
+    `| ---------------------------------: | ------------: | ------------: | ------------: |`,
+  );
   if (!wifnames.length) {
     console.info(`    (none)`);
   }
@@ -1343,7 +1423,7 @@ async function listKeys({ dashApi }, args) {
     }
     */
 
-    process.stdout.write(`${addr}: `);
+    process.stdout.write(`| ${addr} |`);
 
     let balanceInfo = await dashApi.getInstantBalance(addr);
     let balanceDASH = toDASH(balanceInfo.balanceSat);
@@ -1359,12 +1439,26 @@ async function listKeys({ dashApi }, args) {
     let crowdNodeDivNum = toDuff(crowdNodeBalance.TotalDividend);
     let crowdNodeDivDASH = toDASH(crowdNodeDivNum);
     process.stdout.write(
-      `${balanceDASH}🔑 ${crowdNodeDASH}🪧 ${crowdNodeDivDASH}💸`,
+      ` ${balanceDASH} | ${crowdNodeDASH} | ${crowdNodeDivDASH} |`,
     );
+
+    totals.key += balanceInfo.balanceSat;
+    totals.dividend += crowdNodeBalance.TotalDividend;
+    totals.stake += crowdNodeBalance.TotalBalance;
 
     console.info();
   }, Promise.resolve());
-  console.info(``);
+  console.info(
+    `|                                    |               |               |               |`,
+  );
+  let total = `|                             Totals`;
+  totals.keyDash = toDASH(toDuff(totals.key.toString()));
+  totals.stakeDash = toDASH(toDuff(totals.stake.toString()));
+  totals.dividendDash = toDASH(toDuff(totals.dividend.toString()));
+  console.info(
+    `${total} | ${totals.stakeDash} | ${totals.stakeDash} | ${totals.dividendDash} |`,
+  );
+  debug(``);
 
   if (warns.length) {
     console.warn(`Warnings:`);
@@ -1455,7 +1549,7 @@ async function removeKey({ addr, dashApi, filepath, insightBaseUrl }, args) {
     console.info(``);
   } else {
     let newAddr = wifnames[0];
-    console.info(`Selected ${newAddr} as new default staking key.`);
+    debug(`Selected ${newAddr} as new default staking key.`);
     await Fs.writeFile(defaultWifPath, addr.replace(".wif", ""), "utf8");
     console.info(``);
   }
@@ -1978,7 +2072,7 @@ function toDash(duffs) {
  */
 function toDASH(duffs) {
   let dash = (duffs / DUFFS).toFixed(8);
-  return `Đ${dash}`.padStart(13, " ");
+  return `Đ` + dash.padStart(12, " ");
 }
 
 /**
