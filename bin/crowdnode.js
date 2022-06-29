@@ -118,6 +118,19 @@ function showHelp() {
     "    crowdnode http SetReferral ./privkey.wif <referral-id> <signature>",
   );
   console.info("");
+  console.info("Official CrowdNode Resources");
+  console.info("");
+  console.info("Homepage:");
+  console.info("    https://crowdnode.io/");
+  console.info("");
+  console.info("Terms of Service:");
+  console.info("    https://crowdnode.io/terms/");
+  console.info("");
+  console.info("BlockChain API Guide:");
+  console.info(
+    "    https://knowledge.crowdnode.io/en/articles/5963880-blockchain-api-guide",
+  );
+  console.info("");
 }
 
 let cmds = {};
