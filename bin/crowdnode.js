@@ -1963,7 +1963,7 @@ async function withdrawalDash({ dashApi, defaultAddr, insightBaseUrl }, args) {
   }
 
   let realPercentStr = (permil / 10).toFixed(1);
-  console.info(`Initiating withdrawal of ${realPercentStr}...`);
+  console.info(`Initiating withdrawal of ${realPercentStr}%...`);
 
   let wifname = await findWif(addr);
   let filepath = Path.join(keysDir, wifname);
