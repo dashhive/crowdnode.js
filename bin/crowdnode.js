@@ -485,6 +485,8 @@ async function stakeDash(
     { dashApi, defaultAddr: addr, insightBaseUrl, noReserve },
     [addr].concat(args),
   );
+
+  await checkBalance({ addr, dashApi });
 }
 
 /**
@@ -979,7 +981,7 @@ cmds.getPassphrase = async function ({ _rotatePassphrase, _force }, args) {
       let no;
       if (!_force) {
         no = await Prompt.prompt(
-          "Would you like to set an encryption passphrase? [Y/n]: ",
+          "Would you like to encrypt your keys with a passphrase? [Y/n]: ",
         );
       }
 
@@ -1657,7 +1659,11 @@ async function plainLoadAddr({
   showQr(addr, effectiveDuff);
   console.info(``);
   console.info(
-    `Use the QR Code above to load ${effectiveDuff} (Đ${effectiveDash}) onto your staking key.`,
+    `Send Đ${effectiveDash} to your staking key via the QR above, or its address:`,
+  );
+  console.info(`${addr}`);
+  console.info(
+    `(this key will be used to fund and control your CrowdNode account)`,
   );
   console.info(``);
   console.info(`(waiting...)`);
@@ -1780,7 +1786,7 @@ async function sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args) {
   await initCrowdNode(insightBaseUrl);
   let hotwallet = CrowdNode.main.hotwallet;
   let state = await getCrowdNodeStatus({ addr, hotwallet });
-  let balanceInfo = await checkBalance({ addr, dashApi });
+  let balanceInfo = await dashApi.getInstantBalance(addr);
 
   if (state.status?.signup) {
     console.info(`${addr} is already signed up. Here's the account status:`);
