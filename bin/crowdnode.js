@@ -69,6 +69,8 @@ function showHelp() {
   console.info("");
   console.info("Usage:");
   console.info("    crowdnode help");
+  console.info("    crowdnode version");
+  console.info("");
   console.info("    crowdnode status [keyfile-or-addr]");
   console.info("    crowdnode signup [keyfile-or-addr]");
   console.info("    crowdnode accept [keyfile-or-addr]");
