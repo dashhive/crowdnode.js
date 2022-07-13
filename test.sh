@@ -23,6 +23,6 @@ fi
     ./bin/crowdnode.js transfer source-key.wif ./staking-key.wif
 ) &
 ./bin/crowdnode.js deposit ./staking-key.wif
-./bin/crowdnode.js withdrawal ./staking-key.wif 100.0
+./bin/crowdnode.js withdraw ./staking-key.wif 100.0
 ./bin/crowdnode.js balance ./staking-key.wif
 ./bin/crowdnode.js transfer ./staking-key.wif ./source-key.wif

@@ -171,7 +171,7 @@ await CrowdNode.deposit(wif, hotwallet, (amount = 0));
  */
 
 // permil is 1/10 percent, 500 permil = 50.0 percent
-await CrowdNode.withdrawal(wif, hotwallet, permil);
+await CrowdNode.withdraw(wif, hotwallet, permil);
 /** @type SocketPayment
  * {
  *   "address": "Xj00000000000000000000000000000000",
