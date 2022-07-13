@@ -1479,7 +1479,7 @@ async function getAllBalances({ dashApi, defaultAddr }, args) {
   totals.stakeDash = toDASH(toDuff(totals.stake.toString()));
   totals.dividendDash = toDASH(toDuff(totals.dividend.toString()));
   console.info(
-    `${total} | ${totals.stakeDash} | ${totals.stakeDash} | ${totals.dividendDash} |`,
+    `${total} | ${totals.keyDash} | ${totals.stakeDash} | ${totals.dividendDash} |`,
   );
   debug(``);
 
