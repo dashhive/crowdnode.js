@@ -1705,12 +1705,35 @@ async function getBalance({ dashApi, defaultAddr }, args) {
  * @param {any} opts.insightApi
  * @param {Array<String>} args
  */
-// ex: node ./bin/crowdnode.js transfer ./priv.wif 'pub' 0.01
+// ex: node ./bin/crowdnode.js transfer Xxxxx 'pub' 0.01
 async function transferBalance(
   { dashApi, defaultAddr, forceConfirm, insightBaseUrl, insightApi },
   args,
 ) {
-  let wif = await mustGetWif({ defaultAddr }, args);
+  /** @type Array<String> */
+  let getAddrArgs = [];
+
+  // There are two cases in which we could have only 2 arguments,
+  // and the first argument could be an address inside or outside
+  // of the wallet.
+  //
+  // Ex:
+  //   crowdnode transfer {source} {dest}
+  //   crowdnode transfer {source} {dest} {amount}
+  //   crowdnode transfer {dest} {amount}
+  //   crowdnode transfer {dest}
+  //
+  // To disambiguate, we check if the second argument is an amount.
+  if (3 === args.length) {
+    getAddrArgs = args;
+  } else if (2 === args.length) {
+    let maybeAmount = parseFloat(args[1]);
+    let isAddr = isNaN(maybeAmount);
+    if (isAddr) {
+      getAddrArgs = args;
+    }
+  }
+  let wif = await mustGetWif({ defaultAddr }, getAddrArgs);
 
   let keyname = args.shift() || "";
   let newAddr = await wifFileToAddr(keyname);
