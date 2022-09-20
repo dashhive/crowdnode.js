@@ -16,10 +16,10 @@ let Path = require("path");
 let Cipher = require("./_cipher.js");
 let CrowdNode = require("../lib/crowdnode.js");
 let Dash = require("../lib/dash.js");
-let Insight = require("../lib/insight.js");
+let Insight = require("dashsight");
 let Prompt = require("./_prompt.js");
-let Qr = require("../lib/qr.js");
-let Ws = require("../lib/ws.js");
+let Qr = require("./_qr.js");
+let Ws = require("dashsight/ws");
 
 let Dashcore = require("@dashevo/dashcore-lib");
 
