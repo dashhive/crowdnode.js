@@ -6,7 +6,7 @@ let CrowdNode = module.exports;
 
 const DUFFS = 100000000;
 
-let Dash = require("./dash.js");
+let Dash = require("./dashapi.js");
 let Dashcore = require("./dashcore.js");
 let Insight = require("dashsight");
 let Ws = require("dashsight/ws");
@@ -79,7 +79,11 @@ CrowdNode.responses = {
  * @param {String} opts.insightBaseUrl
  * @param {String} opts.knowledgeBaseUrl
  */
-CrowdNode.init = async function ({ baseUrl, insightBaseUrl, knowledgeBaseUrl }) {
+CrowdNode.init = async function ({
+  baseUrl,
+  insightBaseUrl,
+  knowledgeBaseUrl,
+}) {
   // TODO use API
   // See https://github.com/dashhive/crowdnode.js/issues/3
 
@@ -89,13 +93,15 @@ CrowdNode.init = async function ({ baseUrl, insightBaseUrl, knowledgeBaseUrl }) 
   //hotwallet in Mainnet is XjbaGWaGnvEtuQAUoBgDxJWe8ZNv45upG2
   CrowdNode.main.hotwallet = await request({
     // TODO https://app.crowdnode.io/odata/apifundings/HotWallet
-    url: CrowdNode._knowledgeBaseUrl + "/en/articles/5963880-blockchain-api-guide",
+    url:
+      CrowdNode._knowledgeBaseUrl + "/en/articles/5963880-blockchain-api-guide",
   }).then(createAddrParser("hotwallet in Main"));
 
   //hotwallet in Test is yMY5bqWcknGy5xYBHSsh2xvHZiJsRucjuy
   CrowdNode.test.hotwallet = await request({
     // TODO https://test.crowdnode.io/odata/apifundings/HotWallet
-    url: CrowdNode._knowledgeBaseUrl + "/en/articles/5963880-blockchain-api-guide",
+    url:
+      CrowdNode._knowledgeBaseUrl + "/en/articles/5963880-blockchain-api-guide",
   }).then(createAddrParser("hotwallet in Test"));
 
   CrowdNode._insightBaseUrl = insightBaseUrl;
