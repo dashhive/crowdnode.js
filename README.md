@@ -33,6 +33,36 @@ PATH %USERPROFILE%\.local\opt\node;%PATH%
 npm install --save crowdnode@v1
 ```
 
+## CrowdNode Browser SDK
+
+```html
+<script src="https://unpkg.com/@root/request@1.x/urequest.js"></script>
+<script src="https://unpkg.com/dashsight@1.x/dashrequest.js"></script>
+<script src="https://unpkg.com/dashsight@1.x/dashsight.js"></script>
+<script src="https://unpkg.com/dashsight@1.x/dashsocket.js"></script>
+<script src="https://unpkg.com/@dashevo/dashcore-lib@0.19.x"></script>
+<script src="https://unpkg.com/crowdnode@1.x/dashapi.js"></script>
+<script src="https://unpkg.com/crowdnode@1.x/crowdnode.js"></script>
+```
+
+```js
+(async function () {
+  let dashsight = window.DashSight.create({
+    baseUrl: "https://insight.dash.org",
+  });
+
+  // ...
+
+  await window.DashSocket.listen(
+    "https://insight.dash.org",
+    function finder(evname, data) {
+      console.log(evname, data);
+    },
+    { debug: true },
+  );
+})();
+```
+
 # API
 
 The SDK also provides Type Hinting via JSDoc (compatible with TypeScript / tsc
