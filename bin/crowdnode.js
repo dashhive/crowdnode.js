@@ -14,8 +14,8 @@ let Fs = require("fs").promises;
 let Path = require("path");
 
 let Cipher = require("./_cipher.js");
-let CrowdNode = require("../lib/crowdnode.js");
-let Dash = require("../lib/dash.js");
+let CrowdNode = require("../crowdnode.js");
+let Dash = require("../dashapi.js");
 let Insight = require("dashsight");
 let Prompt = require("./_prompt.js");
 let Qr = require("./_qr.js");
