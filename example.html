@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>DashSight Demo</title>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <h1>Open the Console!</h1>
+    <script src="https://unpkg.com/@root/request@1.x/urequest.js"></script>
+    <script src="https://unpkg.com/dashsight@1.x/dashrequest.js"></script>
+    <script src="https://unpkg.com/dashsight@1.x/dashsight.js"></script>
+    <script src="https://unpkg.com/dashsight@1.x/dashsocket.js"></script>
+    <script src="https://unpkg.com/@dashevo/dashcore-lib@0.19.x"></script>
+    <script src="./dashapi.js"></script>
+    <script src="./crowdnode.js"></script>
+
+    <script>
+      (function () {
+        let pubAddress = "XmCyQ6qARLWXap74QubFMunngoiiA1QgCL";
+        let insightBaseUrl = "https://insight.dash.org";
+
+        async function main() {
+          // Initializes API info, such as hotwallets
+          await window.CrowdNode.init({ insightBaseUrl: insightBaseUrl });
+
+          let hotwallet = window.CrowdNode.main.hotwallet;
+
+          let status = await window.CrowdNode.status(pubAddress, hotwallet);
+          console.log("Status:", status);
+
+          let balance = await window.CrowdNode.http.GetBalance(pubAddress);
+          console.log("Balance:", balance);
+        }
+
+        console.log("Trying...");
+        main().catch(function (err) {
+          console.error("Fail:");
+          console.error(err.stack || err);
+        });
+      })();
+    </script>
+  </body>
+</html>
