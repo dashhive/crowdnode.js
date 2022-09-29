@@ -2,7 +2,7 @@
   "name": "crowdnode",
   "version": "1.7.0-0",
   "description": "Manage your stake in Đash with the CrowdNode Blockchain API",
-  "main": "./lib/crowdnode.js",
+  "main": "./index.js",
   "browser": {
     "./lib/request.js": "./lib/request-browser.js"
   },
@@ -14,9 +14,9 @@
   },
   "files": [
     "bin",
-    "lib",
-    "tsconfig.json",
-    "types.js"
+    "crowdnode.js",
+    "dashapi.js",
+    "lib"
   ],
   "repository": {
     "type": "git",

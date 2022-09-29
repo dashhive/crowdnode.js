@@ -6,7 +6,7 @@ let CrowdNode = module.exports;
 
 const DUFFS = 100000000;
 
-let Dash = require("./dash.js");
+let Dash = require("./dashapi.js");
 let Dashcore = require("@dashevo/dashcore-lib");
 let Insight = require("dashsight");
 let Ws = require("dashsight/ws");
