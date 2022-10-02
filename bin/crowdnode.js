@@ -1458,10 +1458,10 @@ async function getAllBalances({ dashApi, defaultAddr }, args) {
       crowdNodeBalance.TotalBalance = 0;
       crowdNodeBalance.TotalDividend = 0;
     }
-    let crowdNodeDuffNum = toDuff(crowdNodeBalance.TotalBalance);
+    let crowdNodeDuffNum = toDuff(crowdNodeBalance.TotalBalance.toString());
     let crowdNodeDASH = toDASH(crowdNodeDuffNum);
 
-    let crowdNodeDivNum = toDuff(crowdNodeBalance.TotalDividend);
+    let crowdNodeDivNum = toDuff(crowdNodeBalance.TotalDividend.toString());
     let crowdNodeDivDASH = toDASH(crowdNodeDivNum);
     process.stdout.write(
       ` ${balanceDASH} | ${crowdNodeDASH} | ${crowdNodeDivDASH} |`,
@@ -1477,7 +1477,7 @@ async function getAllBalances({ dashApi, defaultAddr }, args) {
     `|                                    |               |               |               |`,
   );
   let total = `|                             Totals`;
-  totals.keyDash = toDASH(toDuff(totals.key.toString()));
+  totals.keyDash = toDASH(totals.key);
   totals.stakeDash = toDASH(toDuff(totals.stake.toString()));
   totals.dividendDash = toDASH(toDuff(totals.dividend.toString()));
   console.info(
