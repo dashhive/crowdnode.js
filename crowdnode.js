@@ -531,19 +531,5 @@
 
   if ("undefined" !== typeof module) {
     module.exports = CrowdNode;
-
-    if (require.main === module) {
-      (async function main() {
-        //@ts-ignore
-        await CrowdNode.init({
-          //@ts-ignore
-          baseUrl: CrowdNode.main.baseUrl,
-          insightBaseUrl: "https://insight.dash.org",
-        });
-        console.info(CrowdNode);
-      })().catch(function (err) {
-        console.error(err);
-      });
-    }
   }
 })(("undefined" !== typeof module && module.exports) || window);
