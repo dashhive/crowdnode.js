@@ -1,5 +1,8 @@
-(function (exports) {
+(function (_exports) {
   "use strict";
+
+  /** @type {any} exports */
+  let exports = _exports;
 
   let request = exports.urequest || require("./lib/request.js");
 
@@ -20,12 +23,17 @@
 
   CrowdNode.main = {
     baseUrl: "https://app.crowdnode.io",
-    hotwallet: "",
+
+    // See https://knowledge.crowdnode.io/en/articles/5963880-blockchain-api-guide
+    // TODO https://app.crowdnode.io/odata/apifundings/HotWallet
+    hotwallet: "XjbaGWaGnvEtuQAUoBgDxJWe8ZNv45upG2",
   };
 
   CrowdNode.test = {
     baseUrl: "https://test.crowdnode.io",
-    hotwallet: "",
+    // See https://knowledge.crowdnode.io/en/articles/5963880-blockchain-api-guide
+    // TODO https://test.crowdnode.io/odata/apifundings/HotWallet
+    hotwallet: "yMY5bqWcknGy5xYBHSsh2xvHZiJsRucjuy",
   };
 
   CrowdNode._baseUrl = CrowdNode.main.baseUrl;
@@ -83,18 +91,6 @@
 
     CrowdNode._baseUrl = baseUrl;
 
-    //hotwallet in Mainnet is XjbaGWaGnvEtuQAUoBgDxJWe8ZNv45upG2
-    CrowdNode.main.hotwallet = await request({
-      // TODO https://app.crowdnode.io/odata/apifundings/HotWallet
-      url: "https://knowledge.crowdnode.io/en/articles/5963880-blockchain-api-guide",
-    }).then(createAddrParser("hotwallet in Main"));
-
-    //hotwallet in Test is yMY5bqWcknGy5xYBHSsh2xvHZiJsRucjuy
-    CrowdNode.test.hotwallet = await request({
-      // TODO https://test.crowdnode.io/odata/apifundings/HotWallet
-      url: "https://knowledge.crowdnode.io/en/articles/5963880-blockchain-api-guide",
-    }).then(createAddrParser("hotwallet in Test"));
-
     CrowdNode._insightBaseUrl = insightBaseUrl;
     CrowdNode._insightApi = Insight.create({
       baseUrl: insightBaseUrl,
@@ -115,42 +111,45 @@
       deposit: 0,
     };
 
-    data.txs.forEach(function (tx) {
-      // all inputs (utxos) must come from hotwallet
-      let fromHotwallet = tx.vin.every(function (vin) {
-        return vin.addr === hotwallet;
-      });
-      if (!fromHotwallet) {
-        return;
-      }
-
-      // must have one output matching the "welcome" value to the signupAddr
-      tx.vout.forEach(function (vout) {
-        if (vout.scriptPubKey.addresses[0] !== signupAddr) {
-          return;
-        }
-        let amount = Math.round(parseFloat(vout.value) * DUFFS);
-        let msg = amount - CrowdNode.offset;
-
-        if (CrowdNode.responses.DepositReceived === msg) {
-          status.deposit = tx.time;
-          status.signup = status.signup || 1;
-          status.accept = status.accept || 1;
+    data.txs.forEach(
+      /** @param {InsightTx} tx */
+      function (tx) {
+        // all inputs (utxos) must come from hotwallet
+        let fromHotwallet = tx.vin.every(function (vin) {
+          return vin.addr === hotwallet;
+        });
+        if (!fromHotwallet) {
           return;
         }
 
-        if (CrowdNode.responses.WelcomeToCrowdNodeBlockChainAPI === msg) {
-          status.signup = status.signup || 1;
-          status.accept = tx.time || 1;
-          return;
-        }
+        // must have one output matching the "welcome" value to the signupAddr
+        tx.vout.forEach(function (vout) {
+          if (vout.scriptPubKey.addresses[0] !== signupAddr) {
+            return;
+          }
+          let amount = Math.round(parseFloat(vout.value) * DUFFS);
+          let msg = amount - CrowdNode.offset;
 
-        if (CrowdNode.responses.PleaseAcceptTerms === msg) {
-          status.signup = tx.time;
-          return;
-        }
-      });
-    });
+          if (CrowdNode.responses.DepositReceived === msg) {
+            status.deposit = tx.time;
+            status.signup = status.signup || 1;
+            status.accept = status.accept || 1;
+            return;
+          }
+
+          if (CrowdNode.responses.WelcomeToCrowdNodeBlockChainAPI === msg) {
+            status.signup = status.signup || 1;
+            status.accept = tx.time || 1;
+            return;
+          }
+
+          if (CrowdNode.responses.PleaseAcceptTerms === msg) {
+            status.signup = tx.time;
+            return;
+          }
+        });
+      },
+    );
 
     if (!status.signup) {
       return null;
@@ -491,42 +490,12 @@
   }
 
   /**
-   * @param {String} prefix
-   */
-  function createAddrParser(prefix) {
-    /**
-     * @param {import('http').IncomingMessage} resp
-     */
-    return function (resp) {
-      //@ts-ignore
-      let html = resp.body;
-      return parseAddr(prefix, html);
-    };
-  }
-
-  /**
-   * @param {String} prefix
-   * @param {String} html
-   */
-  function parseAddr(prefix, html) {
-    // TODO escape prefix
-    // TODO restrict to true base58 (not base62)
-    let addrRe = new RegExp(prefix + "[^X]+\\b([Xy][a-z0-9]{33})\\b", "i");
-
-    let m = html.match(addrRe);
-    if (!m) {
-      throw new Error("could not find hotwallet address");
-    }
-
-    let hotwallet = m[1];
-    return hotwallet;
-  }
-
-  /**
    * @param {String|Number} dash
    */
   function toDuff(dash) {
-    return Math.round(parseFloat(dash) * DUFFS);
+    //@ts-ignore
+    let dashF = parseFloat(dash);
+    return Math.round(dashF * DUFFS);
   }
 
   if ("undefined" !== typeof module) {
