@@ -16,12 +16,13 @@
 
     <script>
       (function () {
-        let pubAddress = "XmCyQ6qARLWXap74QubFMunngoiiA1QgCL";
+        let pubAddress = "Xz1pHWWsScUicrAGBMxqqA1UBZ1DmUstxW";
+        let baseUrl = "https://dashnode.duckdns.org/api/cors/app.crowdnode.io";
         let insightBaseUrl = "https://insight.dash.org";
 
         async function main() {
           // Initializes API info, such as hotwallets
-          await window.CrowdNode.init({ insightBaseUrl: insightBaseUrl });
+          await window.CrowdNode.init({ baseUrl, insightBaseUrl });
 
           let hotwallet = window.CrowdNode.main.hotwallet;
 
