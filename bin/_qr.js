@@ -2,8 +2,6 @@
 
 let Qr = module.exports;
 
-let Fs = require("fs").promises;
-
 let QrCode = require("qrcode-svg");
 
 /**
@@ -160,14 +158,4 @@ Qr.ascii = function (data, opts) {
 Qr.svg = function (data, opts) {
   let qrcode = Qr._create(data, opts);
   return qrcode.svg();
-};
-
-/**
- * @param {String} filepath
- * @param {String} data
- * @param {QrOpts} opts
- */
-Qr.save = async function (filepath, data, opts) {
-  let qrcode = Qr.svg(data, opts);
-  await Fs.writeFile(filepath, qrcode, "utf8");
 };

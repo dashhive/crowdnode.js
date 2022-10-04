@@ -18,7 +18,7 @@ let CrowdNode = require("../crowdnode.js");
 let Dash = require("../dashapi.js");
 let Insight = require("dashsight");
 let Prompt = require("./_prompt.js");
-let Qr = require("./_qr.js");
+let Qr = require("./_qr-node.js");
 let Ws = require("dashsight/ws");
 
 let Dashcore = require("@dashevo/dashcore-lib");
