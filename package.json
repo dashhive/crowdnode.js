@@ -18,6 +18,7 @@
     "bin",
     "crowdnode.js",
     "dashapi.js",
+    "index.js",
     "lib"
   ],
   "repository": {
