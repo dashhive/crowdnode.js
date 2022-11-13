@@ -109,7 +109,7 @@
         dashsocketBaseUrl = "https://insight.dash.org/socket.io";
       }
       if (!dashsightBaseUrl) {
-        dashsightBaseUrl = "https://dashnode.duckdns.org/insight-api";
+        dashsightBaseUrl = "https://dashsight.dashincubator.dev/insight-api";
       }
     }
     CrowdNode._dashsocketBaseUrl = dashsocketBaseUrl;
