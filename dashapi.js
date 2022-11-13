@@ -207,6 +207,7 @@
 
     /**
      * @param {Array<InsightUtxo>} body
+     * @returns {Promise<Array<CoreUtxo>>}
      */
     async function getUtxos(body) {
       /** @type Array<CoreUtxo> */
@@ -243,6 +244,7 @@
 
         data.vout.some(findAndSetUtxoIndex);
 
+        // TODO test without txid
         utxos.push({
           txId: utxo.txid,
           outputIndex: utxoIndex,
