@@ -13,12 +13,16 @@
 
   let Dash = exports.DashApi || require("./dashapi.js");
   let Dashcore = exports.dashcore || require("./lib/dashcore.js");
-  let Insight = exports.DashSight || require("dashsight");
+  let DashSight = exports.DashSight || require("dashsight");
   let Ws = exports.DashSocket || require("dashsight/ws");
 
-  CrowdNode._insightBaseUrl = "";
+  CrowdNode._dashsocketBaseUrl = "";
   // TODO don't require these shims
-  CrowdNode._insightApi = Insight.create({ baseUrl: "" });
+  CrowdNode._insightApi = DashSight.create({
+    dashsightBaseUrl: "",
+    dashsocketBaseUrl: "",
+    insightBaseUrl: "",
+  });
   CrowdNode._dashApi = Dash.create({ insightApi: CrowdNode._insightApi });
 
   CrowdNode.main = {
@@ -83,17 +87,35 @@
   /**
    * @param {Object} opts
    * @param {String} opts.baseUrl
-   * @param {String} opts.insightBaseUrl
+   * @param {String} opts.dashsightBaseUrl - typically ends with /insight-api
+   * @param {String} opts.dashsocketBaseUrl - typically ends with /socket.io
+   * @param {String} opts.insightBaseUrl - typically ends with /insight-api
    */
-  CrowdNode.init = async function ({ baseUrl, insightBaseUrl }) {
+  CrowdNode.init = async function ({
+    baseUrl,
+    dashsightBaseUrl,
+    dashsocketBaseUrl,
+    insightBaseUrl,
+  }) {
     // TODO use API
     // See https://github.com/dashhive/crowdnode.js/issues/3
 
     CrowdNode._baseUrl = baseUrl;
 
-    CrowdNode._insightBaseUrl = insightBaseUrl;
-    CrowdNode._insightApi = Insight.create({
-      baseUrl: insightBaseUrl,
+    if ("https://insight.dash.org" === insightBaseUrl) {
+      insightBaseUrl = "https://insight.dash.org/insight-api";
+      if (!dashsocketBaseUrl) {
+        dashsocketBaseUrl = "https://insight.dash.org/socket.io";
+      }
+      if (!dashsightBaseUrl) {
+        dashsightBaseUrl = "https://dashnode.duckdns.org/insight-api";
+      }
+    }
+    CrowdNode._dashsocketBaseUrl = dashsocketBaseUrl;
+    CrowdNode._insightApi = DashSight.create({
+      dashsightBaseUrl: dashsightBaseUrl,
+      dashsocketBaseUrl: dashsocketBaseUrl,
+      insightBaseUrl: insightBaseUrl,
     });
     CrowdNode._dashApi = Dash.create({ insightApi: CrowdNode._insightApi });
   };
@@ -175,7 +197,11 @@
     await CrowdNode._insightApi.instantSend(tx.serialize());
 
     let reply = CrowdNode.offset + CrowdNode.responses.PleaseAcceptTerms;
-    return await Ws.waitForVout(CrowdNode._insightBaseUrl, changeAddr, reply);
+    return await Ws.waitForVout(
+      CrowdNode._dashsocketBaseUrl,
+      changeAddr,
+      reply,
+    );
   };
 
   /**
@@ -197,7 +223,11 @@
 
     let reply =
       CrowdNode.offset + CrowdNode.responses.WelcomeToCrowdNodeBlockChainAPI;
-    return await Ws.waitForVout(CrowdNode._insightBaseUrl, changeAddr, reply);
+    return await Ws.waitForVout(
+      CrowdNode._dashsocketBaseUrl,
+      changeAddr,
+      reply,
+    );
   };
 
   /**
@@ -225,7 +255,11 @@
     await CrowdNode._insightApi.instantSend(tx.serialize());
 
     let reply = CrowdNode.offset + CrowdNode.responses.DepositReceived;
-    return await Ws.waitForVout(CrowdNode._insightBaseUrl, changeAddr, reply);
+    return await Ws.waitForVout(
+      CrowdNode._dashsocketBaseUrl,
+      changeAddr,
+      reply,
+    );
   };
 
   /**
@@ -261,7 +295,7 @@
       satoshis: 0,
       txlock: false,
     };
-    return await Ws.listen(CrowdNode._insightBaseUrl, findResponse);
+    return await Ws.listen(CrowdNode._dashsocketBaseUrl, findResponse);
 
     /**
      * @param {String} evname
