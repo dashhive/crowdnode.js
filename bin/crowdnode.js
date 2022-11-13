@@ -138,7 +138,8 @@ function showHelp() {
 let cmds = {};
 
 let dashsightBaseUrl =
-  process.env.DASHSIGHT_BASE_URL || "https://dashnode.duckdns.org/insight-api";
+  process.env.DASHSIGHT_BASE_URL ||
+  "https://dashsight.dashincubator.dev/insight-api";
 let dashsocketBaseUrl =
   process.env.DASHSOCKET_BASE_URL || "https://insight.dash.org/socket.io";
 let insightBaseUrl =
