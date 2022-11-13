@@ -1,6 +1,6 @@
 {
   "name": "crowdnode",
-  "version": "1.8.0-1",
+  "version": "1.8.0-2",
   "description": "Manage your stake in Đash with the CrowdNode Blockchain API",
   "main": "./index.js",
   "browser": {
