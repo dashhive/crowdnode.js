@@ -16,3 +16,5 @@ async function save(filepath, data, opts) {
 
 //@ts-ignore
 Qr.save = save;
+
+module.exports = Qr;
