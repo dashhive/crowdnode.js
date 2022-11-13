@@ -519,7 +519,7 @@ async function initKeystore({ defaultAddr }) {
 }
 
 async function initCrowdNode() {
-  if (CrowdNode.main.hotwallet) {
+  if (CrowdNode._initialized) {
     return;
   }
   process.stdout.write("Checking CrowdNode API... ");

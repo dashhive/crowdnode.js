@@ -16,6 +16,7 @@
   let DashSight = exports.DashSight || require("dashsight");
   let Ws = exports.DashSocket || require("dashsight/ws");
 
+  CrowdNode._initialized = false;
   CrowdNode._dashsocketBaseUrl = "";
   // TODO don't require these shims
   CrowdNode._insightApi = DashSight.create({
@@ -118,6 +119,7 @@
       insightBaseUrl: insightBaseUrl,
     });
     CrowdNode._dashApi = Dash.create({ insightApi: CrowdNode._insightApi });
+    CrowdNode._initialized = true;
   };
 
   /**
