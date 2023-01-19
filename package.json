@@ -4,8 +4,8 @@
   "description": "Manage your stake in Đash with the CrowdNode Blockchain API",
   "main": "./index.js",
   "browser": {
-    "./lib/request.js": "./lib/request-browser.js",
-    "./lib/dashcore.js": "./lib/browser-dashcore.js"
+    "./lib/dashcore.js": "./lib/browser-dashcore.js",
+    "./lib/request.js": "./shims/request-browser.js"
   },
   "bin": {
     "crowdnode": "./bin/crowdnode.js"
