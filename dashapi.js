@@ -6,12 +6,12 @@
   exports.DashApi = Dash;
 
   const DUFFS = 100000000;
-  const DUST = 10000;
   const FEE = 1000;
 
   //@ts-ignore
-  let Dashcore = exports.dashcore || require("./lib/dashcore.js");
+  let Dashcore = exports.dashcore || require("./dashcore-lit.js");
   let Transaction = Dashcore.Transaction;
+  let PrivateKey = Dashcore.PrivateKey;
 
   Dash.create = function ({
     //@ts-ignore TODO
@@ -51,8 +51,8 @@
      * @param {String} pub
      */
     dashApi.createBalanceTransfer = async function (privKey, pub) {
-      let pk = new Dashcore.PrivateKey(privKey);
-      let changeAddr = pk.toPublicKey().toAddress().toString();
+      let pk = new PrivateKey(privKey);
+      let changeAddr = (await pk.toPublicKey().toAddress()).toString();
 
       let body = await insightApi.getUtxos(changeAddr);
       let utxos = await getUtxos(body);
@@ -65,7 +65,7 @@
         //@ts-ignore - allows single value or array
         .from(utxos);
       tmpTx.to(pub, balance - 1000);
-      tmpTx.sign(pk);
+      await tmpTx.sign(pk);
 
       // TODO getsmartfeeestimate??
       // fee = 1duff/byte (2 chars hex is 1 byte)
@@ -78,7 +78,7 @@
         .from(utxos);
       tx.to(pub, balance - fee);
       tx.fee(fee);
-      tx.sign(pk);
+      await tx.sign(pk);
 
       return tx;
     };
@@ -86,9 +86,9 @@
     /**
      * Send with change back
      * @param {String} privKey
-     * @param {(String|import('@dashevo/dashcore-lib').Address)} payAddr
+     * @param {String} payAddr
      * @param {Number} amount
-     * @param {(String|import('@dashevo/dashcore-lib').Address)} [changeAddr]
+     * @param {String} [changeAddr]
      */
     dashApi.createPayment = async function (
       privKey,
@@ -96,8 +96,8 @@
       amount,
       changeAddr,
     ) {
-      let pk = new Dashcore.PrivateKey(privKey);
-      let utxoAddr = pk.toPublicKey().toAddress().toString();
+      let pk = new PrivateKey(privKey);
+      let utxoAddr = (await pk.toPublicKey().toAddress()).toString();
       if (!changeAddr) {
         changeAddr = utxoAddr;
       }
@@ -112,7 +112,7 @@
       }
 
       // (estimate) don't send dust back as change
-      if (balance - amount <= DUST + FEE) {
+      if (balance - amount <= Transaction.DUST_AMOUNT + FEE) {
         amount = balance;
       }
 
@@ -123,7 +123,7 @@
       tmpTx.to(payAddr, amount);
       //@ts-ignore - the JSDoc is wrong in dashcore-lib/lib/transaction/transaction.js
       tmpTx.change(changeAddr);
-      tmpTx.sign(pk);
+      await tmpTx.sign(pk);
 
       // TODO getsmartfeeestimate??
       // fee = 1duff/byte (2 chars hex is 1 byte)
@@ -132,7 +132,7 @@
       let fee = 10 + tmpTx.toString().length / 2;
 
       // (adjusted) don't send dust back as change
-      if (balance + -amount + -fee <= DUST) {
+      if (balance + -amount + -fee <= Transaction.DUST_AMOUNT) {
         amount = balance - fee;
       }
 
@@ -144,7 +144,7 @@
       tx.fee(fee);
       //@ts-ignore - see above
       tx.change(changeAddr);
-      tx.sign(pk);
+      await tx.sign(pk);
 
       return tx;
     };

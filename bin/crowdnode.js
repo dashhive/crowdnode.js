@@ -21,7 +21,7 @@ let Prompt = require("./_prompt.js");
 let Qr = require("./_qr-node.js");
 let Ws = require("dashsight/ws");
 
-let Dashcore = require("@dashevo/dashcore-lib");
+let Dashcore = require("../dashcore-lit.js");
 
 const DONE = "✅";
 const TODO = "ℹ️";
@@ -663,7 +663,7 @@ async function mustGetAddr({ defaultAddr }, args) {
       return [addr, name];
     }
     //let pk = new Dashcore.PrivateKey(wif);
-    //let addr = pk.toAddress().toString();
+    //let addr = (await pk.toAddress()).toString();
     return [addr, name];
   }
 
@@ -796,8 +796,8 @@ async function generateKey({ defaultKey, plainText }, args) {
   //@ts-ignore - TODO submit JSDoc PR for Dashcore
   let pk = new Dashcore.PrivateKey();
 
-  let addr = pk.toAddress().toString();
-  let plainWif = pk.toWIF();
+  let addr = (await pk.toAddress()).toString();
+  let plainWif = await pk.toWIF();
 
   let wif = plainWif;
   if (!plainText) {
@@ -1259,7 +1259,7 @@ async function maybeReadKeyFileRaw(filepath, opts) {
   }
 
   let pk = new Dashcore.PrivateKey(privKey);
-  let pub = pk.toAddress().toString();
+  let pub = (await pk.toAddress()).toString();
 
   return {
     addr: pub,
@@ -1326,7 +1326,7 @@ async function setDefault(_, args) {
   let filepath = Path.join(keysDir, keyname);
   let wif = await maybeReadKeyFile(filepath);
   let pk = new Dashcore.PrivateKey(wif);
-  let pub = pk.toAddress().toString();
+  let pub = (await pk.toAddress()).toString();
 
   console.info("set", defaultWifPath, pub);
   await Fs.writeFile(defaultWifPath, pub, "utf8");
@@ -1439,7 +1439,7 @@ async function getAllBalances({ dashApi, defaultAddr }, args) {
 
     /*
     let pk = new Dashcore.PrivateKey(wif);
-    let pub = pk.toAddress().toString();
+    let pub = (await pk.toAddress()).toString();
     if (`${pub}.wif` !== wifname) {
       // sanity check
       warns.push({
@@ -2038,12 +2038,11 @@ async function wifFileToAddr(name) {
   }
 
   let pk = new Dashcore.PrivateKey(privKey);
-  let pub = pk.toPublicKey().toAddress().toString();
+  let pub = (await pk.toPublicKey().toAddress()).toString();
   return pub;
 }
 
 /**
- * @param {String} insightBaseUrl
  * @param {String} addr
  */
 async function collectSignupFees(addr) {
