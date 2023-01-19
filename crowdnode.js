@@ -12,7 +12,7 @@
   const DUFFS = 100000000;
 
   let Dash = exports.DashApi || require("./dashapi.js");
-  let Dashcore = exports.dashcore || require("./lib/dashcore.js");
+  let Dashcore = exports.dashcore || require("./dashcore-lit.js");
   let DashSight = exports.DashSight || require("dashsight");
   let Ws = exports.DashSocket || require("dashsight/ws");
 
@@ -189,7 +189,7 @@
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
     let msg = CrowdNode.offset + CrowdNode.requests.signupForApi;
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
     let tx = await CrowdNode._dashApi.createPayment(
       wif,
       hotwallet,
@@ -214,7 +214,7 @@
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
     let msg = CrowdNode.offset + CrowdNode.requests.acceptTerms;
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
     let tx = await CrowdNode._dashApi.createPayment(
       wif,
       hotwallet,
@@ -240,7 +240,7 @@
   CrowdNode.deposit = async function (wif, hotwallet, amount) {
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
 
     // TODO reserve a balance
     let tx;
@@ -284,7 +284,7 @@
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
     let msg = CrowdNode.offset + permil;
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
     let tx = await CrowdNode._dashApi.createPayment(
       wif,
       hotwallet,
