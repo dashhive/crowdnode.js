@@ -5,7 +5,7 @@
   //@ts-ignore
   exports.DashApi = Dash;
 
-  const DUFFS = 100000000;
+  const SATOSHIS = 100000000;
   const FEE = 1000;
 
   //@ts-ignore
@@ -32,7 +32,7 @@
       }, 0);
       // because 0.1 + 0.2 = 0.30000000000000004,
       // but we would only want 0.30000000
-      let floatBalance = parseFloat((balance / DUFFS).toFixed(8));
+      let floatBalance = parseFloat((balance / SATOSHIS).toFixed(8));
 
       return {
         addrStr: address,
@@ -87,13 +87,13 @@
      * Send with change back
      * @param {String} privKey
      * @param {String} payAddr
-     * @param {Number} amount
+     * @param {Number} satoshis - base unit of DASH (a.k.a. "duffs")
      * @param {String} [changeAddr]
      */
     dashApi.createPayment = async function (
       privKey,
       payAddr,
-      amount,
+      satoshis,
       changeAddr,
     ) {
       let pk = new PrivateKey(privKey);
@@ -104,7 +104,7 @@
 
       // TODO make more accurate?
       let feePreEstimate = 1000;
-      let utxos = await getOptimalUtxos(utxoAddr, amount + feePreEstimate);
+      let utxos = await getOptimalUtxos(utxoAddr, satoshis + feePreEstimate);
       let balance = getBalance(utxos);
 
       if (!utxos.length) {
@@ -112,15 +112,15 @@
       }
 
       // (estimate) don't send dust back as change
-      if (balance - amount <= Transaction.DUST_AMOUNT + FEE) {
-        amount = balance;
+      if (balance - satoshis <= Transaction.DUST_AMOUNT + FEE) {
+        satoshis = balance;
       }
 
       //@ts-ignore - no input required, actually
       let tmpTx = new Transaction()
         //@ts-ignore - allows single value or array
         .from(utxos);
-      tmpTx.to(payAddr, amount);
+      tmpTx.to(payAddr, satoshis);
       //@ts-ignore - the JSDoc is wrong in dashcore-lib/lib/transaction/transaction.js
       tmpTx.change(changeAddr);
       await tmpTx.sign(pk);
@@ -132,15 +132,15 @@
       let fee = 10 + tmpTx.toString().length / 2;
 
       // (adjusted) don't send dust back as change
-      if (balance + -amount + -fee <= Transaction.DUST_AMOUNT) {
-        amount = balance - fee;
+      if (balance + -satoshis + -fee <= Transaction.DUST_AMOUNT) {
+        satoshis = balance - fee;
       }
 
       //@ts-ignore - no input required, actually
       let tx = new Transaction()
         //@ts-ignore - allows single value or array
         .from(utxos);
-      tx.to(payAddr, amount);
+      tx.to(payAddr, satoshis);
       tx.fee(fee);
       //@ts-ignore - see above
       tx.change(changeAddr);
@@ -152,16 +152,16 @@
     // TODO make more optimal
     /**
      * @param {String} utxoAddr
-     * @param {Number} fullAmount - including fee estimate
+     * @param {Number} totalSatoshis - including fee estimate
      */
-    async function getOptimalUtxos(utxoAddr, fullAmount) {
+    async function getOptimalUtxos(utxoAddr, totalSatoshis) {
       // get smallest coin larger than transaction
       // if that would create dust, donate it as tx fee
       let body = await insightApi.getUtxos(utxoAddr);
       let utxos = await getUtxos(body);
       let balance = getBalance(utxos);
 
-      if (balance < fullAmount) {
+      if (balance < totalSatoshis) {
         return [];
       }
 
@@ -176,7 +176,7 @@
 
       // try to get just one
       utxos.every(function (utxo) {
-        if (utxo.satoshis > fullAmount) {
+        if (utxo.satoshis > totalSatoshis) {
           included[0] = utxo;
           total = utxo.satoshis;
           return true;
@@ -191,7 +191,7 @@
       utxos.some(function (utxo) {
         included.push(utxo);
         total += utxo.satoshis;
-        return total >= fullAmount;
+        return total >= totalSatoshis;
       });
       return included;
     }
@@ -233,7 +233,7 @@
             return false;
           }
 
-          let satoshis = Math.round(parseFloat(vout.value) * DUFFS);
+          let satoshis = Math.round(parseFloat(vout.value) * SATOSHIS);
           if (utxo.satoshis !== satoshis) {
             return false;
           }
