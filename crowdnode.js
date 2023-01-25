@@ -9,16 +9,21 @@
   let CrowdNode = {};
   exports.CrowdNode = CrowdNode;
 
-  const DUFFS = 100000000;
+  const SATOSHIS = 100000000;
 
   let Dash = exports.DashApi || require("./dashapi.js");
-  let Dashcore = exports.dashcore || require("./lib/dashcore.js");
-  let Insight = exports.DashSight || require("dashsight");
+  let Dashcore = exports.dashcore || require("./dashcore-lit.js");
+  let DashSight = exports.DashSight || require("dashsight");
   let Ws = exports.DashSocket || require("dashsight/ws");
 
-  CrowdNode._insightBaseUrl = "";
+  CrowdNode._initialized = false;
+  CrowdNode._dashsocketBaseUrl = "";
   // TODO don't require these shims
-  CrowdNode._insightApi = Insight.create({ baseUrl: "" });
+  CrowdNode._insightApi = DashSight.create({
+    dashsightBaseUrl: "",
+    dashsocketBaseUrl: "",
+    insightBaseUrl: "",
+  });
   CrowdNode._dashApi = Dash.create({ insightApi: CrowdNode._insightApi });
 
   CrowdNode.main = {
@@ -40,8 +45,9 @@
 
   CrowdNode.offset = 20000;
   CrowdNode.duffs = 100000000;
+  CrowdNode.satoshis = 100000000;
   CrowdNode.depositMinimum = 100000;
-  CrowdNode.stakeMinimum = toDuff(0.5);
+  CrowdNode.stakeMinimum = toSatoshis(0.5);
 
   /**
    * @type {Record<String, Number>}
@@ -83,19 +89,38 @@
   /**
    * @param {Object} opts
    * @param {String} opts.baseUrl
-   * @param {String} opts.insightBaseUrl
+   * @param {String} opts.dashsightBaseUrl - typically ends with /insight-api
+   * @param {String} opts.dashsocketBaseUrl - typically ends with /socket.io
+   * @param {String} opts.insightBaseUrl - typically ends with /insight-api
    */
-  CrowdNode.init = async function ({ baseUrl, insightBaseUrl }) {
+  CrowdNode.init = async function ({
+    baseUrl,
+    dashsightBaseUrl,
+    dashsocketBaseUrl,
+    insightBaseUrl,
+  }) {
     // TODO use API
     // See https://github.com/dashhive/crowdnode.js/issues/3
 
     CrowdNode._baseUrl = baseUrl;
 
-    CrowdNode._insightBaseUrl = insightBaseUrl;
-    CrowdNode._insightApi = Insight.create({
-      baseUrl: insightBaseUrl,
+    if ("https://insight.dash.org" === insightBaseUrl) {
+      insightBaseUrl = "https://insight.dash.org/insight-api";
+      if (!dashsocketBaseUrl) {
+        dashsocketBaseUrl = "https://insight.dash.org/socket.io";
+      }
+      if (!dashsightBaseUrl) {
+        dashsightBaseUrl = "https://dashsight.dashincubator.dev/insight-api";
+      }
+    }
+    CrowdNode._dashsocketBaseUrl = dashsocketBaseUrl;
+    CrowdNode._insightApi = DashSight.create({
+      dashsightBaseUrl: dashsightBaseUrl,
+      dashsocketBaseUrl: dashsocketBaseUrl,
+      insightBaseUrl: insightBaseUrl,
     });
     CrowdNode._dashApi = Dash.create({ insightApi: CrowdNode._insightApi });
+    CrowdNode._initialized = true;
   };
 
   /**
@@ -127,8 +152,8 @@
           if (vout.scriptPubKey.addresses[0] !== signupAddr) {
             return;
           }
-          let amount = Math.round(parseFloat(vout.value) * DUFFS);
-          let msg = amount - CrowdNode.offset;
+          let sats = Math.round(parseFloat(vout.value) * SATOSHIS);
+          let msg = sats - CrowdNode.offset;
 
           if (CrowdNode.responses.DepositReceived === msg) {
             status.deposit = tx.time;
@@ -165,7 +190,7 @@
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
     let msg = CrowdNode.offset + CrowdNode.requests.signupForApi;
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
     let tx = await CrowdNode._dashApi.createPayment(
       wif,
       hotwallet,
@@ -175,7 +200,11 @@
     await CrowdNode._insightApi.instantSend(tx.serialize());
 
     let reply = CrowdNode.offset + CrowdNode.responses.PleaseAcceptTerms;
-    return await Ws.waitForVout(CrowdNode._insightBaseUrl, changeAddr, reply);
+    return await Ws.waitForVout(
+      CrowdNode._dashsocketBaseUrl,
+      changeAddr,
+      reply,
+    );
   };
 
   /**
@@ -186,7 +215,7 @@
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
     let msg = CrowdNode.offset + CrowdNode.requests.acceptTerms;
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
     let tx = await CrowdNode._dashApi.createPayment(
       wif,
       hotwallet,
@@ -197,31 +226,35 @@
 
     let reply =
       CrowdNode.offset + CrowdNode.responses.WelcomeToCrowdNodeBlockChainAPI;
-    return await Ws.waitForVout(CrowdNode._insightBaseUrl, changeAddr, reply);
+    return await Ws.waitForVout(
+      CrowdNode._dashsocketBaseUrl,
+      changeAddr,
+      reply,
+    );
   };
 
   /**
    * @param {String} wif
    * @param {String} hotwallet
-   * @param {Number} amount - Duffs (1/100000000 Dash)
+   * @param {Number} satoshis - base unit of 1/100000000 Dash
    */
-  CrowdNode.deposit = async function (wif, hotwallet, amount) {
+  CrowdNode.deposit = async function (wif, hotwallet, satoshis) {
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
 
     // TODO reserve a balance
     let tx;
-    if (amount) {
-      if (amount < CrowdNode.depositMinimum) {
+    if (satoshis) {
+      if (satoshis < CrowdNode.depositMinimum) {
         throw new Error(
-          `cannot deposit '${amount}': less than minimum of '${CrowdNode.depositMinimum}'`,
+          `cannot deposit '${satoshis}': less than minimum of '${CrowdNode.depositMinimum}'`,
         );
       }
       tx = await CrowdNode._dashApi.createPayment(
         wif,
         hotwallet,
-        amount,
+        satoshis,
         changeAddr,
       );
     } else {
@@ -230,7 +263,11 @@
     await CrowdNode._insightApi.instantSend(tx.serialize());
 
     let reply = CrowdNode.offset + CrowdNode.responses.DepositReceived;
-    return await Ws.waitForVout(CrowdNode._insightBaseUrl, changeAddr, reply);
+    return await Ws.waitForVout(
+      CrowdNode._dashsocketBaseUrl,
+      changeAddr,
+      reply,
+    );
   };
 
   /**
@@ -248,7 +285,7 @@
     // Send Request Message
     let pk = new Dashcore.PrivateKey(wif);
     let msg = CrowdNode.offset + permil;
-    let changeAddr = pk.toPublicKey().toAddress().toString();
+    let changeAddr = (await pk.toPublicKey().toAddress()).toString();
     let tx = await CrowdNode._dashApi.createPayment(
       wif,
       hotwallet,
@@ -266,7 +303,7 @@
       satoshis: 0,
       txlock: false,
     };
-    return await Ws.listen(CrowdNode._insightBaseUrl, findResponse);
+    return await Ws.listen(CrowdNode._dashsocketBaseUrl, findResponse);
 
     /**
      * @param {String} evname
@@ -293,12 +330,12 @@
             return false;
           }
 
-          let duffs = vout[addr];
-          let msg = duffs - CrowdNode.offset;
+          let sats = vout[addr];
+          let msg = sats - CrowdNode.offset;
           let api = CrowdNode._responses[msg];
           if (!api) {
             // the withdraw often happens before the queued message
-            console.warn(`  => received '${duffs}' (${evname})`);
+            console.warn(`  => received '${sats}' (${evname})`);
             return false;
           }
 
@@ -307,7 +344,7 @@
             api: api.toString(),
             at: now,
             txid: data.txid,
-            satoshis: duffs,
+            satoshis: sats,
             txlock: data.txlock,
           };
 
@@ -399,7 +436,7 @@
     }
 
     // Workaround for https://github.com/dashhive/crowdnode-cli/issues/19
-    // (we could also `b = Math.round(Math.floor(b * DUFFS) / DUFFS)`)
+    // (we could also `b = Math.round(Math.floor(b * SATOSHIS) / SATOSHIS)`)
     balanceInfo.TotalBalance = parseFloat(balanceInfo.TotalBalance.toFixed(8));
     balanceInfo.TotalActiveBalance = parseFloat(
       balanceInfo.TotalActiveBalance.toFixed(8),
@@ -497,10 +534,10 @@
   /**
    * @param {String|Number} dash
    */
-  function toDuff(dash) {
+  function toSatoshis(dash) {
     //@ts-ignore
     let dashF = parseFloat(dash);
-    return Math.round(dashF * DUFFS);
+    return Math.round(dashF * SATOSHIS);
   }
 
   if ("undefined" !== typeof module) {

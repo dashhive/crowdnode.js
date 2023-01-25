@@ -16,24 +16,24 @@ let Path = require("path");
 let Cipher = require("./_cipher.js");
 let CrowdNode = require("../crowdnode.js");
 let Dash = require("../dashapi.js");
-let Insight = require("dashsight");
+let Dashsight = require("dashsight");
 let Prompt = require("./_prompt.js");
 let Qr = require("./_qr-node.js");
 let Ws = require("dashsight/ws");
 
-let Dashcore = require("@dashevo/dashcore-lib");
+let Dashcore = require("../dashcore-lit.js");
 
 const DONE = "✅";
 const TODO = "ℹ️";
 const NO_SHADOW = "NONE";
-const DUFFS = 100000000;
+const SATOSHIS = 100000000;
 
 let shownDefault = false;
 let qrWidth = 2 + 33 + 2;
 // Sign Up Fees:
 //   0.00236608 // required for signup
 //   0.00002000 // TX fee estimate
-//   0.00238608 // minimum recommended amount
+//   0.00238608 // minimum recommended DASH
 // Target:
 //   0.01000000
 let signupOnly = CrowdNode.requests.signupForApi + CrowdNode.requests.offset;
@@ -137,6 +137,14 @@ function showHelp() {
 
 let cmds = {};
 
+let dashsightBaseUrl =
+  process.env.DASHSIGHT_BASE_URL ||
+  "https://dashsight.dashincubator.dev/insight-api";
+let dashsocketBaseUrl =
+  process.env.DASHSOCKET_BASE_URL || "https://insight.dash.org/socket.io";
+let insightBaseUrl =
+  process.env.INSIGHT_BASE_URL || "https://insight.dash.org/insight-api";
+
 async function main() {
   /*jshint maxcomplexity:40 */
   /*jshint maxstatements:500 */
@@ -180,17 +188,18 @@ async function main() {
   );
   defaultAddr = defaultAddr.trim();
 
-  let insightBaseUrl =
-    process.env.INSIGHT_BASE_URL || "https://insight.dash.org";
-  let insightApi = Insight.create({ baseUrl: insightBaseUrl });
-  let dashApi = Dash.create({ insightApi: insightApi });
+  let dashsightApi = Dashsight.create({
+    dashsightBaseUrl: dashsightBaseUrl,
+    dashsocketBaseUrl: dashsocketBaseUrl,
+    insightBaseUrl: insightBaseUrl,
+  });
+  let dashApi = Dash.create({ insightApi: dashsightApi });
 
   if ("stake" === subcommand) {
     await stakeDash(
       {
         dashApi,
-        insightApi,
-        insightBaseUrl,
+        insightApi: dashsightApi,
         defaultAddr,
         forceGenerate,
         noReserve,
@@ -290,7 +299,12 @@ async function main() {
   // helper for debugging
   if ("transfer" === subcommand) {
     await transferBalance(
-      { dashApi, defaultAddr, forceConfirm, insightBaseUrl, insightApi },
+      {
+        dashApi,
+        defaultAddr,
+        forceConfirm,
+        insightApi: dashsightApi,
+      },
       args,
     );
     process.exit(0);
@@ -308,7 +322,7 @@ async function main() {
 
     let [addr] = await mustGetAddr({ defaultAddr }, args);
 
-    await initCrowdNode(insightBaseUrl);
+    await initCrowdNode();
     // ex: http <rpc>(<pub>, ...)
     args.unshift(addr);
     let hasRpc = rpc in CrowdNode.http;
@@ -339,7 +353,7 @@ async function main() {
 
   // keeping rm for backwards compat
   if ("rm" === subcommand || "delete" === subcommand) {
-    await initCrowdNode(insightBaseUrl);
+    await initCrowdNode();
     let [addr, filepath] = await mustGetAddr({ defaultAddr }, args);
     await removeKey({ addr, dashApi, filepath, insightBaseUrl }, args);
     process.exit(0);
@@ -377,10 +391,7 @@ async function main() {
   }
 
   if ("deposit" === subcommand) {
-    await depositDash(
-      { dashApi, defaultAddr, insightBaseUrl, noReserve },
-      args,
-    );
+    await depositDash({ dashApi, defaultAddr, noReserve }, args);
     process.exit(0);
     return;
   }
@@ -416,14 +427,7 @@ async function main() {
  * @param {Array<String>} args
  */
 async function stakeDash(
-  {
-    dashApi,
-    defaultAddr,
-    forceGenerate,
-    insightApi,
-    insightBaseUrl,
-    noReserve,
-  },
+  { dashApi, defaultAddr, forceGenerate, insightApi, noReserve },
   args,
 ) {
   let err = await Fs.access(args[0]).catch(Object);
@@ -446,6 +450,8 @@ async function stakeDash(
   console.info("Checking CrowdNode account... ");
   await CrowdNode.init({
     baseUrl: "https://app.crowdnode.io",
+    dashsightBaseUrl,
+    dashsocketBaseUrl,
     insightBaseUrl,
   });
   let hotwallet = CrowdNode.main.hotwallet;
@@ -466,21 +472,20 @@ async function stakeDash(
     extra += acceptDeposit;
   }
 
-  let desiredAmountDash = args.shift() || "0.5";
-  let effectiveDuff = toDuff(desiredAmountDash);
-  effectiveDuff += extra;
+  let desiredDashAmount = args.shift() || "0.5";
+  let effectiveSats = toDuff(desiredDashAmount);
+  effectiveSats += extra;
 
   let balanceInfo = await dashApi.getInstantBalance(addr);
-  effectiveDuff -= balanceInfo.balanceSat;
+  effectiveSats -= balanceInfo.balanceSat;
 
-  if (effectiveDuff > 0) {
-    effectiveDuff = roundDuff(effectiveDuff, 3);
-    let effectiveDash = toDash(effectiveDuff);
+  if (effectiveSats > 0) {
+    effectiveSats = roundDuff(effectiveSats, 3);
+    let effectiveDash = toDash(effectiveSats);
     await plainLoadAddr({
       addr,
       effectiveDash,
-      effectiveDuff,
-      insightBaseUrl,
+      effectiveSats,
     });
   }
 
@@ -492,7 +497,7 @@ async function stakeDash(
   }
 
   await depositDash(
-    { dashApi, defaultAddr: addr, insightBaseUrl, noReserve },
+    { dashApi, defaultAddr: addr, noReserve },
     [addr].concat(args),
   );
 
@@ -514,16 +519,15 @@ async function initKeystore({ defaultAddr }) {
   return defaultAddr || wifnames[0];
 }
 
-/**
- * @param {String} insightBaseUrl
- */
-async function initCrowdNode(insightBaseUrl) {
-  if (CrowdNode.main.hotwallet) {
+async function initCrowdNode() {
+  if (CrowdNode._initialized) {
     return;
   }
   process.stdout.write("Checking CrowdNode API... ");
   await CrowdNode.init({
     baseUrl: "https://app.crowdnode.io",
+    dashsightBaseUrl,
+    dashsocketBaseUrl,
     insightBaseUrl,
   });
   console.info(`(hotwallet ${CrowdNode.main.hotwallet})`);
@@ -659,7 +663,7 @@ async function mustGetAddr({ defaultAddr }, args) {
       return [addr, name];
     }
     //let pk = new Dashcore.PrivateKey(wif);
-    //let addr = pk.toAddress().toString();
+    //let addr = (await pk.toAddress()).toString();
     return [addr, name];
   }
 
@@ -792,8 +796,8 @@ async function generateKey({ defaultKey, plainText }, args) {
   //@ts-ignore - TODO submit JSDoc PR for Dashcore
   let pk = new Dashcore.PrivateKey();
 
-  let addr = pk.toAddress().toString();
-  let plainWif = pk.toWIF();
+  let addr = (await pk.toAddress()).toString();
+  let plainWif = await pk.toWIF();
 
   let wif = plainWif;
   if (!plainText) {
@@ -1255,7 +1259,7 @@ async function maybeReadKeyFileRaw(filepath, opts) {
   }
 
   let pk = new Dashcore.PrivateKey(privKey);
-  let pub = pk.toAddress().toString();
+  let pub = (await pk.toAddress()).toString();
 
   return {
     addr: pub,
@@ -1322,7 +1326,7 @@ async function setDefault(_, args) {
   let filepath = Path.join(keysDir, keyname);
   let wif = await maybeReadKeyFile(filepath);
   let pk = new Dashcore.PrivateKey(wif);
-  let pub = pk.toAddress().toString();
+  let pub = (await pk.toAddress()).toString();
 
   console.info("set", defaultWifPath, pub);
   await Fs.writeFile(defaultWifPath, pub, "utf8");
@@ -1435,7 +1439,7 @@ async function getAllBalances({ dashApi, defaultAddr }, args) {
 
     /*
     let pk = new Dashcore.PrivateKey(wif);
-    let pub = pk.toAddress().toString();
+    let pub = (await pk.toAddress()).toString();
     if (`${pub}.wif` !== wifname) {
       // sanity check
       warns.push({
@@ -1529,7 +1533,7 @@ async function removeKey({ addr, dashApi, filepath, insightBaseUrl }, args) {
     return;
   }
 
-  await initCrowdNode(insightBaseUrl);
+  await initCrowdNode();
   let crowdNodeBalance = await CrowdNode.http.GetBalance(addr);
   if (!crowdNodeBalance) {
     // may be janky if not registered
@@ -1621,18 +1625,18 @@ async function listManagedKeynames() {
 async function loadAddr({ defaultAddr, insightBaseUrl }, args) {
   let [addr] = await mustGetAddr({ defaultAddr }, args);
 
-  let desiredAmountDash = parseFloat(args.shift() || "0");
-  let desiredAmountDuff = Math.round(desiredAmountDash * DUFFS);
+  let desiredDashAmount = parseFloat(args.shift() || "0");
+  let desiredSatoshis = Math.round(desiredDashAmount * SATOSHIS);
 
-  let effectiveDuff = desiredAmountDuff;
+  let effectiveSats = desiredSatoshis;
   let effectiveDash = "";
-  if (!effectiveDuff) {
-    effectiveDuff = CrowdNode.stakeMinimum + signupTotal + feeEstimate;
-    effectiveDuff = roundDuff(effectiveDuff, 3);
-    effectiveDash = toDash(effectiveDuff);
+  if (!effectiveSats) {
+    effectiveSats = CrowdNode.stakeMinimum + signupTotal + feeEstimate;
+    effectiveSats = roundDuff(effectiveSats, 3);
+    effectiveDash = toDash(effectiveSats);
   }
 
-  await plainLoadAddr({ addr, effectiveDash, effectiveDuff, insightBaseUrl });
+  await plainLoadAddr({ addr, effectiveDash, effectiveSats, insightBaseUrl });
 
   return;
 }
@@ -1640,33 +1644,28 @@ async function loadAddr({ defaultAddr, insightBaseUrl }, args) {
 /**
  * 1000 to Round to the nearest mDash
  * ex: 0.50238108 => 0.50300000
- * @param {Number} effectiveDuff
+ * @param {Number} effectiveSats
  * @param {Number} numDigits
  */
-function roundDuff(effectiveDuff, numDigits) {
+function roundDuff(effectiveSats, numDigits) {
   let n = Math.pow(10, numDigits);
-  let effectiveDash = toDash(effectiveDuff);
-  effectiveDuff = toDuff(
+  let effectiveDash = toDash(effectiveSats);
+  effectiveSats = toDuff(
     (Math.ceil(parseFloat(effectiveDash) * n) / n).toString(),
   );
-  return effectiveDuff;
+  return effectiveSats;
 }
 
 /**
  * @param {Object} opts
  * @param {String} opts.addr
  * @param {String} opts.effectiveDash
- * @param {Number} opts.effectiveDuff
+ * @param {Number} opts.effectiveSats
  * @param {String} opts.insightBaseUrl
  */
-async function plainLoadAddr({
-  addr,
-  effectiveDash,
-  effectiveDuff,
-  insightBaseUrl,
-}) {
+async function plainLoadAddr({ addr, effectiveDash, effectiveSats }) {
   console.info(``);
-  showQr(addr, effectiveDuff);
+  showQr(addr, effectiveSats);
   console.info(``);
   console.info(
     `Send Đ${effectiveDash} to your staking key via the QR above, or its address:`,
@@ -1678,7 +1677,7 @@ async function plainLoadAddr({
   console.info(``);
   console.info(`(waiting...)`);
   console.info(``);
-  let payment = await Ws.waitForVout(insightBaseUrl, addr, 0);
+  let payment = await Ws.waitForVout(dashsocketBaseUrl, addr, 0);
   console.info(`Received ${payment.satoshis}`);
 }
 
@@ -1707,7 +1706,7 @@ async function getBalance({ dashApi, defaultAddr }, args) {
  */
 // ex: node ./bin/crowdnode.js transfer Xxxxx 'pub' 0.01
 async function transferBalance(
-  { dashApi, defaultAddr, forceConfirm, insightBaseUrl, insightApi },
+  { dashApi, defaultAddr, forceConfirm, insightApi },
   args,
 ) {
   /** @type Array<String> */
@@ -1719,16 +1718,16 @@ async function transferBalance(
   //
   // Ex:
   //   crowdnode transfer {source} {dest}
-  //   crowdnode transfer {source} {dest} {amount}
-  //   crowdnode transfer {dest} {amount}
+  //   crowdnode transfer {source} {dest} {dash-amount}
+  //   crowdnode transfer {dest} {dash-amount}
   //   crowdnode transfer {dest}
   //
-  // To disambiguate, we check if the second argument is an amount.
+  // To disambiguate, we check if the second argument is a dash-amount.
   if (3 === args.length) {
     getAddrArgs = args;
   } else if (2 === args.length) {
-    let maybeAmount = parseFloat(args[1]);
-    let isAddr = isNaN(maybeAmount);
+    let maybeDashAmount = parseFloat(args[1]);
+    let isAddr = isNaN(maybeDashAmount);
     if (isAddr) {
       getAddrArgs = args;
     }
@@ -1738,17 +1737,17 @@ async function transferBalance(
   let keyname = args.shift() || "";
   let newAddr = await wifFileToAddr(keyname);
   let dashAmount = parseFloat(args.shift() || "0");
-  let duffAmount = Math.round(dashAmount * DUFFS);
+  let satoshis = Math.round(dashAmount * SATOSHIS);
   let tx;
-  if (duffAmount) {
-    tx = await dashApi.createPayment(wif, newAddr, duffAmount);
+  if (satoshis) {
+    tx = await dashApi.createPayment(wif, newAddr, satoshis);
   } else {
     tx = await dashApi.createBalanceTransfer(wif, newAddr);
   }
-  if (duffAmount) {
-    let dashAmountStr = toDash(duffAmount);
+  if (satoshis) {
+    let dashAmountStr = toDash(satoshis);
     console.info(
-      `Transferring ${duffAmount} (Đ${dashAmountStr}) to ${newAddr}...`,
+      `Transferring ${satoshis} (Đ${dashAmountStr}) to ${newAddr}...`,
     );
   } else {
     console.info(`Transferring balance to ${newAddr}...`);
@@ -1764,7 +1763,7 @@ async function transferBalance(
     }
     process.exit(1);
   }, 30 * 1000);
-  await Ws.waitForVout(insightBaseUrl, newAddr, 0);
+  await Ws.waitForVout(dashsocketBaseUrl, newAddr, 0);
   console.info(`Accepted!`);
   return;
 }
@@ -1778,7 +1777,7 @@ async function transferBalance(
  */
 async function getStatus({ dashApi, defaultAddr, insightBaseUrl }, args) {
   let [addr] = await mustGetAddr({ defaultAddr }, args);
-  await initCrowdNode(insightBaseUrl);
+  await initCrowdNode();
   let hotwallet = CrowdNode.main.hotwallet;
   let state = await getCrowdNodeStatus({ addr, hotwallet });
 
@@ -1816,7 +1815,7 @@ async function getStatus({ dashApi, defaultAddr, insightBaseUrl }, args) {
  */
 async function sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args) {
   let [addr, name] = await mustGetAddr({ defaultAddr }, args);
-  await initCrowdNode(insightBaseUrl);
+  await initCrowdNode();
   let hotwallet = CrowdNode.main.hotwallet;
   let state = await getCrowdNodeStatus({ addr, hotwallet });
   let balanceInfo = await dashApi.getInstantBalance(addr);
@@ -1831,7 +1830,7 @@ async function sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args) {
 
   let hasEnough = balanceInfo.balanceSat > signupOnly + feeEstimate;
   if (!hasEnough) {
-    await collectSignupFees(insightBaseUrl, addr);
+    await collectSignupFees(addr);
   }
 
   let wif = await maybeReadKeyPaths(name, { wif: true });
@@ -1853,7 +1852,7 @@ async function sendSignup({ dashApi, defaultAddr, insightBaseUrl }, args) {
 async function acceptTerms({ dashApi, defaultAddr, insightBaseUrl }, args) {
   let [addr, name] = await mustGetAddr({ defaultAddr }, args);
 
-  await initCrowdNode(insightBaseUrl);
+  await initCrowdNode();
   let hotwallet = CrowdNode.main.hotwallet;
   let state = await getCrowdNodeStatus({ addr, hotwallet });
   let balanceInfo = await dashApi.getInstantBalance(addr);
@@ -1875,7 +1874,7 @@ async function acceptTerms({ dashApi, defaultAddr, insightBaseUrl }, args) {
   }
   let hasEnough = balanceInfo.balanceSat > acceptOnly + feeEstimate;
   if (!hasEnough) {
-    await collectSignupFees(insightBaseUrl, addr);
+    await collectSignupFees(addr);
   }
 
   let wif = await maybeReadKeyPaths(name, { wif: true });
@@ -1895,12 +1894,9 @@ async function acceptTerms({ dashApi, defaultAddr, insightBaseUrl }, args) {
  * @param {Boolean} opts.noReserve
  * @param {Array<String>} args
  */
-async function depositDash(
-  { dashApi, defaultAddr, insightBaseUrl, noReserve },
-  args,
-) {
+async function depositDash({ dashApi, defaultAddr, noReserve }, args) {
   let [addr, name] = await mustGetAddr({ defaultAddr }, args);
-  await initCrowdNode(insightBaseUrl);
+  await initCrowdNode();
   let hotwallet = CrowdNode.main.hotwallet;
   let state = await getCrowdNodeStatus({ addr, hotwallet });
   let balanceInfo = await dashApi.getInstantBalance(addr);
@@ -1926,20 +1922,20 @@ async function depositDash(
 
   // deposit what the user asks, or all that we have,
   // or all that the user deposits - but at least 2x the reserve
-  let desiredAmountDash = parseFloat(args.shift() || "0");
-  let desiredAmountDuff = Math.round(desiredAmountDash * DUFFS);
-  let effectiveAmount = desiredAmountDuff;
-  if (!effectiveAmount) {
-    effectiveAmount = balanceInfo.balanceSat - reserve;
+  let desiredDashAmount = parseFloat(args.shift() || "0");
+  let desiredSatoshis = Math.round(desiredDashAmount * SATOSHIS);
+  let effectiveSats = desiredSatoshis;
+  if (!effectiveSats) {
+    effectiveSats = balanceInfo.balanceSat - reserve;
   }
-  let needed = Math.max(reserve * 2, effectiveAmount + reserve);
+  let needed = Math.max(reserve * 2, effectiveSats + reserve);
 
   if (balanceInfo.balanceSat < needed) {
     let ask = 0;
-    if (desiredAmountDuff) {
-      ask = desiredAmountDuff + reserve + -balanceInfo.balanceSat;
+    if (desiredSatoshis) {
+      ask = desiredSatoshis + reserve + -balanceInfo.balanceSat;
     }
-    await collectDeposit(insightBaseUrl, addr, ask);
+    await collectDeposit(addr, ask);
     balanceInfo = await dashApi.getInstantBalance(addr);
     if (balanceInfo.balanceSat < needed) {
       let balanceDash = toDash(balanceInfo.balanceSat);
@@ -1950,18 +1946,16 @@ async function depositDash(
       return;
     }
   }
-  if (!desiredAmountDuff) {
-    effectiveAmount = balanceInfo.balanceSat - reserve;
+  if (!desiredSatoshis) {
+    effectiveSats = balanceInfo.balanceSat - reserve;
   }
 
-  let effectiveDash = toDash(effectiveAmount);
-  console.info(
-    `Initiating deposit of ${effectiveAmount} (Đ${effectiveDash})...`,
-  );
+  let effectiveDash = toDash(effectiveSats);
+  console.info(`Initiating deposit of ${effectiveSats} (Đ${effectiveDash})...`);
 
   let wif = await maybeReadKeyPaths(name, { wif: true });
 
-  await CrowdNode.deposit(wif, hotwallet, effectiveAmount);
+  await CrowdNode.deposit(wif, hotwallet, effectiveSats);
   state.deposit = DONE;
   console.info(`    ${state.deposit} DepositReceived`);
   return;
@@ -1976,7 +1970,7 @@ async function depositDash(
  */
 async function withdrawDash({ dashApi, defaultAddr, insightBaseUrl }, args) {
   let [addr] = await mustGetAddr({ defaultAddr }, args);
-  await initCrowdNode(insightBaseUrl);
+  await initCrowdNode();
   let hotwallet = CrowdNode.main.hotwallet;
   let state = await getCrowdNodeStatus({ addr, hotwallet });
 
@@ -2008,7 +2002,7 @@ async function withdrawDash({ dashApi, defaultAddr, insightBaseUrl }, args) {
   let filepath = Path.join(keysDir, wifname);
   let wif = await maybeReadKeyFile(filepath);
   let paid = await CrowdNode.withdraw(wif, hotwallet, permil);
-  //let paidFloat = (paid.satoshis / DUFFS).toFixed(8);
+  //let paidFloat = (paid.satoshis / SATOSHIS).toFixed(8);
   //let paidInt = paid.satoshis.toString().padStart(9, "0");
   console.info(`API Response: ${paid.api}`);
   return;
@@ -2042,15 +2036,14 @@ async function wifFileToAddr(name) {
   }
 
   let pk = new Dashcore.PrivateKey(privKey);
-  let pub = pk.toPublicKey().toAddress().toString();
+  let pub = (await pk.toPublicKey().toAddress()).toString();
   return pub;
 }
 
 /**
- * @param {String} insightBaseUrl
  * @param {String} addr
  */
-async function collectSignupFees(insightBaseUrl, addr) {
+async function collectSignupFees(addr) {
   console.info(``);
   showQr(addr);
 
@@ -2068,23 +2061,23 @@ async function collectSignupFees(insightBaseUrl, addr) {
   console.info("");
   console.info("(waiting...)");
   console.info("");
-  let payment = await Ws.waitForVout(insightBaseUrl, addr, 0);
+  let payment = await Ws.waitForVout(dashsocketBaseUrl, addr, 0);
   console.info(`Received ${payment.satoshis}`);
 }
 
 /**
  * @param {String} insightBaseUrl
  * @param {String} addr
- * @param {Number} duffAmount
+ * @param {Number} satoshis
  */
-async function collectDeposit(insightBaseUrl, addr, duffAmount) {
+async function collectDeposit(addr, satoshis) {
   console.info(``);
-  showQr(addr, duffAmount);
+  showQr(addr, satoshis);
 
   let depositMsg = `Please send what you wish to deposit to ${addr}`;
-  if (duffAmount) {
-    let dashAmount = toDash(duffAmount);
-    depositMsg = `Please deposit ${duffAmount} (Đ${dashAmount}) to ${addr}`;
+  if (satoshis) {
+    let dashAmount = toDash(satoshis);
+    depositMsg = `Please deposit ${satoshis} (Đ${dashAmount}) to ${addr}`;
   }
 
   let msgPad = Math.ceil((qrWidth - depositMsg.length) / 2);
@@ -2097,7 +2090,7 @@ async function collectDeposit(insightBaseUrl, addr, duffAmount) {
   console.info("");
   console.info("(waiting...)");
   console.info("");
-  let payment = await Ws.waitForVout(insightBaseUrl, addr, 0);
+  let payment = await Ws.waitForVout(dashsocketBaseUrl, addr, 0);
   console.info(`Received ${payment.satoshis}`);
 }
 
@@ -2116,14 +2109,14 @@ function emptyStringOnErrEnoent(err) {
  * @param {Number} duffs - ex: 00000000
  */
 function toDash(duffs) {
-  return (duffs / DUFFS).toFixed(8);
+  return (duffs / SATOSHIS).toFixed(8);
 }
 
 /**
  * @param {Number} duffs - ex: 00000000
  */
 function toDASH(duffs) {
-  let dash = (duffs / DUFFS).toFixed(8);
+  let dash = (duffs / SATOSHIS).toFixed(8);
   return `Đ` + dash.padStart(12, " ");
 }
 
@@ -2131,7 +2124,7 @@ function toDASH(duffs) {
  * @param {String} dash - ex: 0.00000000
  */
 function toDuff(dash) {
-  return Math.round(parseFloat(dash) * DUFFS);
+  return Math.round(parseFloat(dash) * SATOSHIS);
 }
 
 // Run
