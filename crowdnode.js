@@ -40,7 +40,7 @@
 
   CrowdNode.offset = 20000;
   CrowdNode.duffs = 100000000;
-  CrowdNode.depositMinimum = 10000;
+  CrowdNode.depositMinimum = 100000;
   CrowdNode.stakeMinimum = toDuff(0.5);
 
   /**
@@ -213,6 +213,11 @@
     // TODO reserve a balance
     let tx;
     if (amount) {
+      if (amount < CrowdNode.depositMinimum) {
+        throw new Error(
+          `cannot deposit '${amount}': less than minimum of '${CrowdNode.depositMinimum}'`,
+        );
+      }
       tx = await CrowdNode._dashApi.createPayment(
         wif,
         hotwallet,

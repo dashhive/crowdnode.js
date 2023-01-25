@@ -125,7 +125,7 @@ APIs, but which you could learn from in [crowdnode-cli](/bin/crowdnode.js).
 ```js
 CrowdNode.offset = 20000;
 CrowdNode.duffs = 100000000;
-CrowdNode.depositMinimum = 10000;
+CrowdNode.depositMinimum = 100000;
 
 CrowdNode.requests = {
   acceptTerms: 65536,
