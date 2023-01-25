@@ -75,14 +75,14 @@
 
     /**
      * @param {Array<import('@dashincubator/blocktx').TxOutput>} payments
-     * @param {Number} amount
+     * @param {Number} satoshis - base unit of DASH (a.k.a. "duffs")
      */
-    coreTx.to = function (payments, amount) {
+    coreTx.to = function (payments, satoshis) {
       if (!Array.isArray(payments)) {
         payments = [
           {
             address: payments,
-            satoshis: amount,
+            satoshis: satoshis,
           },
         ];
       }
